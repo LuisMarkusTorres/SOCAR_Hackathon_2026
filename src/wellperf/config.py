@@ -66,6 +66,12 @@ MAX_INTERP_GAP_MIN = 10
 SHUTIN_GL_MAX_MSCFD = 5.0
 SHUTIN_MIN_DURATION_HR = 1.0
 
+# PTA behaviour. PTA_LEGACY_WINDOW=True restores the original window picker (flattest derivative after the first
+# slope < 0.25 past the peak) exactly; the model match then only comments. PTA_MODEL_FALLBACK lets the analytical
+# storage+skin match supply k and skin (flagged) when the record has no radial-flow plateau at all.
+PTA_LEGACY_WINDOW = False
+PTA_MODEL_FALLBACK = True
+
 # Unit conversions
 SM3_PER_MSCF = 1000.0 / 35.3147  # 1 Mscf = 28.3168 sm3
 

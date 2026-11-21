@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import least_squares
 
+from . import config as C
 from .analytical import buildup_dp
 
 
@@ -114,22 +115,26 @@ def storage_end_index(g: np.ndarray, slope: np.ndarray) -> int | None:
     When no rise is visible (the data starts after storage) the first flat point is used.
     """
     n = len(g)
+    gs = pd.Series(g).rolling(5, center=True, min_periods=1).median().to_numpy()   # noise-robust level
     early = slice(0, max(3, n // 2))
-    peak = int(np.argmax(g[early]))
-    rising = np.nanmax(slope[: peak + 1]) > 0.5 if peak > 0 else False
-    if not rising:
-        for i in range(n):
-            if abs(slope[i]) < 0.25:
+    peak = int(np.argmax(gs[early]))
+    # a storage rise is a sustained unit-slope-like climb (not one noisy point) before the peak
+    rising = peak >= 2 and np.sum(slope[:peak] > 0.5) >= 2 and gs[peak] > 1.5 * gs[0]
+    if C.PTA_LEGACY_WINDOW or not rising:
+        start = peak if C.PTA_LEGACY_WINDOW else 0
+        for i in range(start, n):
+            if (slope[i] < 0.25) if C.PTA_LEGACY_WINDOW else (abs(slope[i]) < 0.25):
                 return i
-        return None
-    # a storage rise is visible: wait for the descent (derivative well below the hump) and the flattening after it
-    g_peak = g[peak]
+        return 0 if C.PTA_LEGACY_WINDOW else None
+    # a storage hump is visible: radial flow can only begin after the derivative has come down from it
+    g_peak = gs[peak]
     for i in range(peak + 1, n):
-        if g[i] < 0.75 * g_peak and slope[i] > -0.15:
+        if gs[i] < 0.75 * g_peak and slope[i] > -0.15:
             return i
-    # derivative never came down far enough: the plateau (if any) is still ahead of the data
-    if slope[-1] < -0.15 or np.nanmin(g[peak:]) > 0.75 * g_peak:
-        return None
+    # never came down by a quarter: accept a flat tail at the end of the record, otherwise storage-dominated
+    tail = slice(max(peak + 1, int(0.8 * n)), n)
+    if n - tail.start >= 3 and np.nanmean(np.abs(slope[tail])) < 0.15:
+        return tail.start
     return None
 
 
@@ -162,9 +167,10 @@ def find_iarf_window(dt: np.ndarray, der: np.ndarray, min_span_cycles: float = 0
                 continue
             # the storage hump always lies above the radial-flow level: a candidate that sits clearly above the
             # derivative seen later in the record is the top of the hump, not radial flow
-            later = gs[j + 1:]
-            if len(later) >= 3 and np.median(gs[i: j + 1]) > 1.25 * later.min():
-                continue
+            if not C.PTA_LEGACY_WINDOW:
+                later = gs[(lt > lt[j]) & (lt <= lt[j] + 1.0)]
+                if len(later) >= 3 and np.median(gs[i: j + 1]) > 1.5 * later.min():
+                    continue
             seg = slope[i: j + 1]
             score = np.mean(np.abs(seg)) + 0.02 / span   # favour flat, then longer windows
             if score < best[2]:
@@ -307,25 +313,14 @@ def interpret_buildup(minute: pd.DataFrame, event: pd.Series, q_stbd: float, np_
     credible = match is not None and match["ok"] and match["nrmse"] < 0.04
     half_cycle_left = lambda t_start: np.log10(dt.max() / t_start) >= 0.5
 
-    if window is None and credible and np.isfinite(t0) and t0 < 0.5 * match["t_iarf"] and half_cycle_left(match["t_iarf"]):
-        # the data plateau starts well before the matched model reaches radial flow: move the window out
-        t0, src = match["t_iarf"], "auto (start from model match)"
-        t1 = max(t1, dt.max())
+    # When the data show a plateau, the Horner line on it is the result; the model match only comments on it.
+    # Only when the data offer no plateau at all does the match supply the estimate (and says so).
+    source = "Horner"
     if window is None and not np.isfinite(t0) and credible and half_cycle_left(match["t_iarf"]):
         t0, t1, src = match["t_iarf"], dt.max(), "auto (start from model match)"
-
-    source = "Horner"
-    if window is None and credible and np.isfinite(t0) and t0 < 0.5 * match["t_iarf"]:
-        # the matched model says the plateau is still inside the storage transition; trust that only when the
-        # Horner line also disagrees with the match (a slow approach from below with agreeing k stays Horner)
-        m_try = horner_fit(dt, p, tp, t0, t1)[0]
-        k_try = 162.6 * q_stbd * B * mu / (m_try * h) if np.isfinite(m_try) and m_try > 0 else np.nan
-        if not np.isfinite(k_try) or abs(match["k"] / k_try - 1) > 0.3:
-            t0 = np.nan
     if not np.isfinite(t0):
-        # no radial flow in the record: the matched model is the only defensible estimate
         t0, t1, src = dt.max() / 10 ** 0.5, dt.max(), "none (storage-dominated)"
-        if credible:
+        if credible and C.PTA_MODEL_FALLBACK:
             source = "model match"
             flags.append(f"storage-dominated shut-in: no radial-flow plateau in the data; k and skin come from the "
                          f"analytical model match (storage + skin), not from a Horner line; k 80% range "

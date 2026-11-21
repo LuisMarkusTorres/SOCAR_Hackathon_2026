@@ -88,8 +88,10 @@ check against the reference PTA file when it is present in `data/raw`).
 4. **PTA** for each shut-in:
    - log-resampled build-up, Bourdet derivative, automatic radial-flow window: the flattest derivative stretch that lies
      after the storage hump has come down and not above the derivative seen later in the record
-   - analytical storage + skin model matched to the whole build-up as a cross-check; when the record ends before radial
-     flow (short shut-in, large storage) the match supplies k and skin instead, flagged and with an 80% range
+   - analytical storage + skin model matched to the whole build-up as a cross-check; when the record has no radial-flow
+     plateau at all (short shut-in, large storage) the match supplies k and skin instead, flagged and with an 80% range.
+     The data window is never moved by the model. `PTA_LEGACY_WINDOW = True` in `config.py` restores the original
+     window picker exactly (the match then only comments); `PTA_MODEL_FALLBACK = False` disables the fallback.
    - Horner fit gives m, p* and p₁ₕᵣ, and from them `k = 162.6qBμ/(mh)`, skin and `Δp_skin = 0.87·m·s`
    - q = VFM daily oil rate of the last full day before shut-in; `tp = 24·Np/q`
 5. **Interpretation**: damaged wells, flow efficiency, data and fit flags.
