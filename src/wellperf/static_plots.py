@@ -19,8 +19,8 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 BLUE, ORANGE, AQUA, MUTED, GRID, INK = "#2a78d6", "#eb6834", "#1baf7a", "#898781", "#e1e0d9", "#3a3936"
-PHASES = [("oil_rate_stbd", "Oil (STB/d)", AQUA), ("water_rate_stbd", "Water (STB/d)", BLUE),
-          ("gas_rate_mscfd", "Gas (Mscf/d)", ORANGE)]
+PHASES = [("oil_rate_stbd", "Oil (STB/d)", "#d97706"), ("water_rate_stbd", "Water (STB/d)", "#4f46e5"),
+          ("gas_rate_mscfd", "Gas (Mscf/d)", "#0d9488")]
 
 plt.rcParams.update({"font.size": 9.5, "axes.edgecolor": "#c3c2b7", "axes.labelcolor": INK, "xtick.color": INK,
                      "ytick.color": INK, "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.7,
@@ -120,8 +120,8 @@ def rate_figure(vfm_daily: pd.DataFrame, tests: pd.DataFrame | None, well: str) 
     fig, axes = plt.subplots(3, 1, figsize=(11, 7), sharex=True)
     for ax, (ph, label, col) in zip(axes, PHASES):
         if ph + "_p05" in d:
-            ax.fill_between(d.date, d[ph + "_p05"], d[ph + "_p95"], color=MUTED, alpha=0.2, lw=0)
-        ax.plot(d.date, d[ph], color=col, lw=1.6)
+            ax.fill_between(d.date, d[ph + "_p05"], d[ph + "_p95"], color=MUTED, alpha=0.2, lw=0, step="post")
+        ax.step(d.date, d[ph], where="post", color=col, lw=1.6)
         if tests is not None:
             t = tests[tests.well_name == well]
             ax.plot(t.test_mid, t[ph], "o", mfc="white", mec="#0b0b0b", ms=5)

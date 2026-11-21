@@ -21,8 +21,9 @@ $$q_L = J_w\,\big(\bar p_{r,w}(t) - p_{wf}\big), \qquad \bar p_{r,w}(t) = p_{0,w
 
 $$WC_w(t) = c_w + d_w\,t, \qquad GOR_w \approx R_s(p_b)$$
 
-$$q_o = q_L\,(1 - WC),\quad q_w = q_L\,WC,\quad q_g = q_o\,GOR/1000, \qquad
-\text{daily volume} = \text{rate} \times \text{hours on stream}/24$$
+$$q_o = q_L\,(1 - WC),\qquad q_w = q_L\,WC,\qquad q_g = q_o\,GOR/1000$$
+
+$$\text{daily volume} = \text{rate} \times \text{hours on stream}/24$$
 
 $J$ (productivity index) is ridge-regularised toward a pooled, field-wide value, so wells whose tests barely moved in
 pressure still get a physically sensible $J$. The only sensor the daily rate needs is the downhole gauge; shut-ins come
@@ -34,7 +35,7 @@ with right:
     par = par[["well_name", "n_tests", "J", "J_source", "wc_c", "wc_d", "gor", "rs_pb"]]
     UI.table(par, key_col="well_name", max_height=330,
              labels={"well_name": "Well", "n_tests": "Tests", "J": "J, STB/d/psi", "J_source": "J from",
-                     "wc_c": "Water cut, %", "wc_d": "WC trend, %/day", "gor": "GOR, scf/STB", "rs_pb": "Rs(pb)"},
+                     "wc_c": "WC, %", "wc_d": "WC trend, %/d", "gor": "GOR", "rs_pb": "Rs(pb)"},
              formats={"J": "{:.2f}", "wc_c": "{:.1f}", "wc_d": "{:+.3f}", "gor": "{:,.0f}", "rs_pb": "{:,.0f}"})
 
 UI.section("Validation against the well tests",
@@ -88,9 +89,7 @@ with left:
    log cycle). It can be overridden by hand on the Build-up tests page.
 4. A straight line on the **Horner plot** gives the slope $m$ and $p^*$; then, in field units,
 
-$$k = \frac{162.6\,q\,B\,\mu}{m\,h}, \qquad
-s = 1.151\left[\frac{p_{1hr} - p_{wf}}{m} - \log_{10}\frac{k}{\phi\,\mu\,c_t\,r_w^2} + 3.23\right], \qquad
-\Delta p_{skin} = 0.87\,m\,s$$
+$$k = \frac{162.6\,q\,B\,\mu}{m\,h}, \qquad s = 1.151\left[\frac{p_{1hr} - p_{wf}}{m} - \log_{10}\frac{k}{\phi\,\mu\,c_t\,r_w^2} + 3.23\right], \qquad \Delta p_{skin} = 0.87\,m\,s$$
 
 $q$ is the flow meter's oil rate on the last full day before the shut-in, $t_p = 24\,N_p/q$. Every result carries
 the fit $R^2$, a derivative cross-check of $m$, the radius of investigation and plain-language flags.

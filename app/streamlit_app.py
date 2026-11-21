@@ -1,4 +1,4 @@
-"""Well Performance Studio: virtual flow metering and automated build-up analysis in one workflow.
+"""VFMonitor: virtual flow metering and automated build-up analysis in one workflow.
 
 Run from the project root:  streamlit run app/streamlit_app.py
 The trained model is loaded from models/vfm_model.pkl (created by scripts/run_pipeline.py).
@@ -13,8 +13,10 @@ from wellperf import config as C
 from wellperf import pipeline as PL
 from wellperf import ui as UI
 
-st.set_page_config(page_title="Well Performance Studio", page_icon=":material/oil_barrel:", layout="wide")
+st.set_page_config(page_title=UI.APP_NAME, page_icon=":material/monitoring:", layout="wide",
+                   initial_sidebar_state="expanded")
 UI.apply_css()
+st.logo(UI.LOGO_SVG, size="large", icon_image=UI.ICON_SVG)
 
 
 @st.cache_resource(show_spinner="Loading the trained model…")
@@ -49,9 +51,6 @@ base = training_workspace(bundle) if has_training else PL.workspace_from_bundle(
 ws = base if has_training else None
 
 with st.sidebar:
-    st.markdown("<div class='brand'>Well Performance Studio</div>"
-                "<div class='brand-sub'>Virtual flow metering · build-up analysis</div>", unsafe_allow_html=True)
-
     st.markdown("<div class='side-label'>Data</div>", unsafe_allow_html=True)
     options = (["Training period", "Upload"] if has_training else ["Upload"])
     source = st.segmented_control("Data source", options, default=options[0], required=True, key="source",
@@ -112,7 +111,7 @@ with st.sidebar:
         st.markdown("<div class='facts'>" + "<br>".join(facts) + "</div>", unsafe_allow_html=True)
 
 if ws is None:
-    UI.header("Well Performance Studio", "Upload raw well data in the sidebar to start")
+    UI.header(UI.APP_NAME, "Upload raw well data in the sidebar to start")
     UI.note("The trained flow-meter model is loaded. Drop the raw files (CSV, Excel or a zip) into the sidebar: the "
             "per-minute sensor table is required; choke events, well tests, reservoir/PVT and completion tables are "
             "optional.", "info")
@@ -120,11 +119,11 @@ if ws is None:
 
 st.session_state["_ws"] = ws
 pages = [
-    st.Page("views/overview.py", title="Overview", default=True),
-    st.Page("views/data_quality.py", title="Data quality"),
-    st.Page("views/production.py", title="Production (VFM)"),
-    st.Page("views/buildups.py", title="Build-up tests (PTA)"),
-    st.Page("views/method.py", title="Method & validation"),
-    st.Page("views/export.py", title="Export"),
+    st.Page("views/overview.py", title="Overview", icon=":material/dashboard:", url_path="overview", default=True),
+    st.Page("views/data_quality.py", title="Data", icon=":material/database:", url_path="data"),
+    st.Page("views/production.py", title="Production · VFM", icon=":material/show_chart:", url_path="production"),
+    st.Page("views/buildups.py", title="Build-up · PTA", icon=":material/speed:", url_path="buildup"),
+    st.Page("views/method.py", title="Method", icon=":material/science:", url_path="method"),
+    st.Page("views/export.py", title="Export", icon=":material/download:", url_path="export"),
 ]
-st.navigation(pages, position="top").run()
+st.navigation(pages, position="sidebar").run()

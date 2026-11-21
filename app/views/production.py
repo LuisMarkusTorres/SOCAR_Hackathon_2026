@@ -35,7 +35,7 @@ c[4].metric("Reservoir pressure", f"{pres_now:,.0f} psia" if np.isfinite(pres_no
 st.plotly_chart(PLT.vfm_rate_panels(ws.vfm_daily, ws.tests, well, ws.events), width="stretch")
 UI.howto("<b>Lines</b>: predicted daily volumes = rate × hours on stream. <b>Shaded</b>: the well was shut in (for "
          "example for a build-up test), so the daily volume falls to zero on full shut-in days. That drop is real, not "
-         "a model failure. <b>Grey band</b>: 90% range from out-of-sample errors. <b>White circles</b>: measured "
+         "a model failure. <b>Grey band</b>: 90% range from out-of-sample errors. <b>Circles</b>: measured "
          "production well tests. The model is fitted to them, but each was also predicted blind from earlier tests "
          "to measure the error.")
 out_days = d[d.flag.str.startswith("sensor outage")]

@@ -6,24 +6,30 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Phase colours (reference palette slots 1-3, validated all-pairs): water=blue, gas=orange, oil=aqua
-PHASE_COLOR = {"oil_rate_stbd": "#1baf7a", "water_rate_stbd": "#2a78d6", "gas_rate_mscfd": "#eb6834"}
+# Phase colours on the dark theme: oil amber, gas teal, water indigo (distinct in hue and lightness)
+PHASE_COLOR = {"oil_rate_stbd": "#f59e0b", "water_rate_stbd": "#818cf8", "gas_rate_mscfd": "#2dd4bf"}
 PHASE_LABEL = {"oil_rate_stbd": "Oil (STB/d)", "water_rate_stbd": "Water (STB/d)", "gas_rate_mscfd": "Gas (Mscf/d)"}
-BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
-INK2, MUTED, GRID, AXIS = "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
-SHADE = "rgba(137,135,129,0.14)"
-WINDOW = "rgba(42,120,214,0.10)"
+BLUE, ORANGE, AQUA = "#60a5fa", "#f59e0b", "#2dd4bf"
+INK2, MUTED, GRID, AXIS = "#b7c0d1", "#8a94a8", "rgba(255,255,255,0.07)", "rgba(255,255,255,0.18)"
+SHADE = "rgba(255,255,255,0.06)"
+WINDOW = "rgba(96,165,250,0.12)"
+BAND = "rgba(255,255,255,0.08)"
+STEP = "hv"          # daily values are step-wise: a square line reads them honestly
 
 
 def _style(fig: go.Figure, height: int = 420, legend_below: bool = False) -> go.Figure:
     legend = (dict(orientation="h", y=-0.2, yanchor="top", x=0, bgcolor="rgba(0,0,0,0)") if legend_below
               else dict(orientation="h", y=1.08, x=0, bgcolor="rgba(0,0,0,0)"))
-    fig.update_layout(template="plotly_white", height=height + (60 if legend_below else 0),
+    fig.update_layout(template="plotly_dark", height=height + (60 if legend_below else 0),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       margin=dict(l=60, r=20, t=40, b=40 + (70 if legend_below else 0)),
-                      font=dict(family="system-ui, -apple-system, Segoe UI, sans-serif", size=12, color=INK2),
-                      hovermode="x unified", legend=legend)
-    fig.update_xaxes(gridcolor=GRID, linecolor=AXIS, zeroline=False)
-    fig.update_yaxes(gridcolor=GRID, linecolor=AXIS, zeroline=False)
+                      font=dict(family="Inter, system-ui, -apple-system, Segoe UI, sans-serif", size=12, color=INK2),
+                      hovermode="x unified", hoverlabel=dict(bgcolor="#1a2236", bordercolor="rgba(255,255,255,0.15)",
+                                                             font=dict(color="#e6eaf2")),
+                      legend=legend, transition=dict(duration=300, easing="cubic-in-out"))
+    fig.update_xaxes(gridcolor=GRID, linecolor=AXIS, zeroline=False, tickfont=dict(color=MUTED))
+    fig.update_yaxes(gridcolor=GRID, linecolor=AXIS, zeroline=False, tickfont=dict(color=MUTED))
+    fig.update_annotations(font_color=INK2)
     return fig
 
 
@@ -53,7 +59,7 @@ def sensor_panels(minute: pd.DataFrame, well: str, cols: list[str], resample: st
     fig = make_subplots(rows=len(cols), cols=1, shared_xaxes=True, vertical_spacing=0.03,
                         subplot_titles=[SENSOR_LABEL.get(c, c) for c in cols])
     for i, c in enumerate(cols, start=1):
-        fig.add_trace(go.Scattergl(x=agg.index, y=agg[c], mode="lines", line=dict(width=1.5, color=BLUE),
+        fig.add_trace(go.Scattergl(x=agg.index, y=agg[c], mode="lines", line=dict(width=1.5, color=BLUE, shape=STEP),
                                    name=SENSOR_LABEL.get(c, c), showlegend=False,
                                    hovertemplate="%{y:.1f}<extra>" + c + "</extra>"), row=i, col=1)
         if shut is not None:
@@ -79,19 +85,19 @@ def vfm_rate_panels(vfm_daily: pd.DataFrame, tests: pd.DataFrame, well: str, eve
                 fig.add_vrect(x0=ev.t_shut, x1=ev.t_reopen, fillcolor=SHADE, line_width=0, row=i, col=1)
             fig.add_annotation(x=ev.t_reopen, y=0.08, yref="y domain", row=1, col=1, xanchor="left", xshift=4,
                                text=f"shut in {ev.duration_hr:.0f} h", showarrow=False, yanchor="bottom",
-                               font=dict(size=10, color=INK2), bgcolor="rgba(252,252,251,0.85)")
+                               font=dict(size=10, color=INK2), bgcolor="rgba(17,24,39,0.85)")
     for i, ph in enumerate(phases, start=1):
         col = PHASE_COLOR[ph]
         if ph + "_p05" in d:
             fig.add_trace(go.Scatter(x=pd.concat([d.date, d.date[::-1]]),
                                      y=pd.concat([d[ph + "_p95"], d[ph + "_p05"][::-1]]),
-                                     fill="toself", fillcolor="rgba(137,135,129,0.18)", line=dict(width=0),
+                                     fill="toself", fillcolor=BAND, line=dict(width=0, shape=STEP),
                                      hoverinfo="skip", name="90% prediction band", showlegend=(i == 1)), row=i, col=1)
-        fig.add_trace(go.Scatter(x=d.date, y=d[ph], mode="lines", line=dict(width=2, color=col),
+        fig.add_trace(go.Scatter(x=d.date, y=d[ph], mode="lines", line=dict(width=2, color=col, shape=STEP),
                                  name="VFM daily" if i == 1 else PHASE_LABEL[ph], showlegend=(i == 1),
                                  hovertemplate="%{y:.0f}<extra>VFM</extra>"), row=i, col=1)
         fig.add_trace(go.Scatter(x=t.test_mid, y=t[ph], mode="markers",
-                                 marker=dict(size=9, color="#ffffff", line=dict(width=2, color="#0b0b0b")),
+                                 marker=dict(size=8, color="#0b0f1a", line=dict(width=2, color=col)),
                                  name="Well test (measured)", showlegend=(i == 1),
                                  hovertemplate="%{y:.0f}<extra>well test</extra>"), row=i, col=1)
     for a in fig.layout.annotations[:3]:          # subplot titles only
@@ -109,7 +115,7 @@ def parity_plot(bt: pd.DataFrame, phase: str) -> go.Figure:
     fig.add_trace(go.Scatter(x=[lo, hi], y=[lo, hi], mode="lines", line=dict(color=AXIS, width=1, dash="dot"),
                              name="perfect", hoverinfo="skip", showlegend=False))
     fig.add_trace(go.Scatter(x=a, y=p, mode="markers", marker=dict(size=9, color=PHASE_COLOR[phase],
-                                                                   line=dict(width=1.5, color="#fcfcfb")),
+                                                                   line=dict(width=1.5, color="#0b0f1a")),
                              text=bt.loc[ok, "well_name"] + " " + bt.loc[ok, "test_mid"].dt.strftime("%Y-%m-%d"),
                              hovertemplate="%{text}<br>measured %{x:.0f}<br>predicted %{y:.0f}<extra></extra>",
                              showlegend=False))
@@ -124,13 +130,13 @@ def reservoir_pressure_plot(vfm_daily: pd.DataFrame, well: str, pta_rows: pd.Dat
     d = vfm_daily[vfm_daily.well_name == well].copy()
     d["date"] = pd.to_datetime(d["date"])
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=d.date, y=d.p_res_implied_psia, mode="lines", line=dict(width=2, color=BLUE),
+    fig.add_trace(go.Scatter(x=d.date, y=d.p_res_implied_psia, mode="lines", line=dict(width=2, color=BLUE, shape=STEP),
                              name="Reservoir pressure implied by VFM inflow model"))
-    fig.add_trace(go.Scatter(x=d.date, y=d.pwf_psia, mode="lines", line=dict(width=1.5, color=MUTED),
+    fig.add_trace(go.Scatter(x=d.date, y=d.pwf_psia, mode="lines", line=dict(width=1.5, color=MUTED, shape=STEP),
                              name="Flowing bottom-hole pressure (gauge)"))
     if pta_rows is not None and len(pta_rows):
         fig.add_trace(go.Scatter(x=pta_rows.t_shut, y=pta_rows.p_star_psia, mode="markers",
-                                 marker=dict(size=11, color=ORANGE, symbol="diamond", line=dict(width=1.5, color="#fcfcfb")),
+                                 marker=dict(size=11, color=ORANGE, symbol="diamond", line=dict(width=1.5, color="#0b0f1a")),
                                  name="p* from build-up (PTA)"))
     fig.update_yaxes(title="psia (gauge depth)")
     return _style(fig, height=360)
@@ -152,7 +158,8 @@ def loglog_plot(r) -> go.Figure:
     lvl = m / np.log(10)
     fig.add_trace(go.Scatter(x=[d["dt"].min(), d["dt"].max()], y=[lvl, lvl], mode="lines",
                              line=dict(color=ORANGE, width=1, dash="dash"), name=f"IARF level m/2.303 = {lvl:.1f} psi"))
-    fig.update_xaxes(type="log", title="Shut-in time Δt (h)", dtick=1)
+    fig.update_xaxes(type="log", title="Shut-in time Δt (h)", dtick=1,
+                     range=[np.log10(float(np.min(d["dt"])) * 0.7), np.log10(float(np.max(d["dt"])) * 1.5)])
     fig.update_yaxes(type="log", title="Δp, Δp′ (psi)", dtick=1)
     fig.update_layout(title=dict(text="Log-log diagnostic plot", x=0, font_size=13), hovermode="closest")
     return _style(fig, legend_below=True)
@@ -172,7 +179,7 @@ def horner_plot(r) -> go.Figure:
                              line=dict(color=ORANGE, width=2),
                              name=f"Horner line: m = {r.m_psi_cycle:.2f} psi/cycle, p* = {r.p_star_psia:.0f} psia"))
     fig.add_trace(go.Scatter(x=[1], y=[r.p_star_psia], mode="markers",
-                             marker=dict(size=11, color=ORANGE, symbol="diamond", line=dict(width=1.5, color="#fcfcfb")),
+                             marker=dict(size=11, color=ORANGE, symbol="diamond", line=dict(width=1.5, color="#0b0f1a")),
                              name="p* (extrapolated)", showlegend=False))
     fig.update_xaxes(type="log", autorange="reversed", title="Horner time (tp + Δt)/Δt", dtick=1)
     fig.update_yaxes(title="Shut-in pressure p<sub>ws</sub> (psia)")
@@ -192,7 +199,8 @@ def mdh_plot(r) -> go.Figure:
                              line=dict(color=ORANGE, width=2), name="Straight-line fit", hoverinfo="skip"))
     fig.add_hline(y=r.p1hr_psia, line=dict(color=AXIS, width=1, dash="dot"),
                   annotation_text=f"p₁ₕᵣ = {r.p1hr_psia:.1f} psia", annotation_position="bottom right")
-    fig.update_xaxes(type="log", title="Shut-in time Δt (h)", dtick=1)
+    fig.update_xaxes(type="log", title="Shut-in time Δt (h)", dtick=1,
+                     range=[np.log10(float(np.min(d["dt"])) * 0.7), np.log10(float(np.max(d["dt"])) * 1.5)])
     fig.update_yaxes(title="p<sub>ws</sub> (psia)")
     fig.update_layout(title=dict(text="Semilog (MDH) plot", x=0, font_size=13), hovermode="closest")
     return _style(fig, height=380, legend_below=True)
@@ -205,7 +213,7 @@ def event_history_plot(minute: pd.DataFrame, r, pad_hr: float = 12) -> go.Figure
                         subplot_titles=["Downhole pressure (psia)", "Gas-lift rate (Mscf/d)"])
     fig.add_trace(go.Scattergl(x=w.index, y=w.dh_pressure_psia, mode="lines", line=dict(width=1.5, color=BLUE),
                                showlegend=False), row=1, col=1)
-    fig.add_trace(go.Scattergl(x=w.index, y=w.gas_lift_rate_mscfd, mode="lines", line=dict(width=1.5, color=MUTED),
+    fig.add_trace(go.Scattergl(x=w.index, y=w.gas_lift_rate_mscfd, mode="lines", line=dict(width=1.5, color=MUTED, shape=STEP),
                                showlegend=False), row=2, col=1)
     for row in (1, 2):
         fig.add_vrect(x0=r.t_shut, x1=r.t_shut + pd.Timedelta(hours=r.duration_hr), fillcolor=SHADE, line_width=0,
@@ -213,4 +221,25 @@ def event_history_plot(minute: pd.DataFrame, r, pad_hr: float = 12) -> go.Figure
     fig.update_annotations(font_size=12, x=0, xanchor="left")
     fig = _style(fig, height=380 + 60)
     fig.update_layout(title=dict(text="Shut-in event", x=0, font_size=13), margin_t=70)
+    return fig
+
+
+def field_rates_plot(vfm_daily: pd.DataFrame, days: int = 90, height: int = 340) -> go.Figure:
+    """Field totals of the daily VFM rates over the last `days` days: oil and water (left axis), gas (right axis)."""
+    d = vfm_daily.assign(date=pd.to_datetime(vfm_daily.date))
+    d = d[d.date >= d.date.max() - pd.Timedelta(days=days)]
+    f = d.groupby("date")[list(PHASE_COLOR)].sum()
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    for ph in ["oil_rate_stbd", "water_rate_stbd"]:
+        fig.add_trace(go.Scatter(x=f.index, y=f[ph], mode="lines", line=dict(width=2, color=PHASE_COLOR[ph], shape=STEP),
+                                 name=PHASE_LABEL[ph], hovertemplate="%{y:,.0f}<extra>" + PHASE_LABEL[ph] + "</extra>"),
+                      secondary_y=False)
+    fig.add_trace(go.Scatter(x=f.index, y=f["gas_rate_mscfd"], mode="lines",
+                             line=dict(width=2, color=PHASE_COLOR["gas_rate_mscfd"], shape=STEP),
+                             name=PHASE_LABEL["gas_rate_mscfd"],
+                             hovertemplate="%{y:,.0f}<extra>Gas (Mscf/d)</extra>"), secondary_y=True)
+    fig.update_yaxes(title_text="STB/d", secondary_y=False, rangemode="tozero")
+    fig.update_yaxes(title_text="Mscf/d", secondary_y=True, rangemode="tozero", showgrid=False)
+    fig = _style(fig, height)
+    fig.update_layout(margin=dict(l=50, r=50, t=30, b=30), legend=dict(orientation="h", y=1.1, x=0))
     return fig

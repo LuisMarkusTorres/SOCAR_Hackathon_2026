@@ -1,4 +1,4 @@
-# Well Performance Studio: VFM × PTA
+# VFMonitor: VFM × PTA
 
 SOCAR Hackathon 2026, *Intelligent Well Performance Analysis*. One application that takes raw well data through to daily
 oil, water and gas rates (Virtual Flow Metering) and on to automated build-up interpretation (Pressure Transient Analysis).
@@ -17,13 +17,13 @@ Application requirements → app pages:
 | Requirement | In the app |
 |---|---|
 | Upload raw data | Sidebar → **Upload**: drop all files at once (CSV, Excel, Parquet or a zip of them); tables are recognised by their columns |
-| Visualise field measurements | **Data quality**: sensor plots with shut-ins shaded, corrections applied |
-| Predict production rates with the trained VFM | **Production (VFM)**: daily rates with 90% ranges, rate calculator, inflow curve; optional recalibration on uploaded tests |
-| Generate well-test plots | **Build-up tests (PTA)**: log-log derivative, Horner, MDH, event history |
-| Estimate reservoir properties | **Build-up tests (PTA)**: m, k, skin, Δp skin, p* at gauge and datum depth, flow efficiency |
-| Interpret reservoir behaviour | **Build-up tests (PTA)**: written interpretation; reservoir-pressure cross-check on Production |
+| Visualise field measurements | **Data**: sensor plots with shut-ins shaded, corrections applied |
+| Predict production rates with the trained VFM | **Production · VFM**: daily rates with 90% ranges, rate calculator, inflow curve; optional recalibration on uploaded tests |
+| Generate well-test plots | **Build-up · PTA**: log-log derivative, Horner, MDH, event history |
+| Estimate reservoir properties | **Build-up · PTA**: m, k, skin, Δp skin, p* at gauge and datum depth, flow efficiency |
+| Interpret reservoir behaviour | **Build-up · PTA**: written interpretation; reservoir-pressure cross-check on Production |
 | Export results and reports, VFM and PTA | **Export**: one zip with everything, or the result files (Excel/CSV), VFM report, PTA report, PTA plots (zip), model (.pkl) |
-| (method and evidence for the jury) | **Method & validation**: equations, validation vs baseline, parity plots, model comparison, synthetic PTA check |
+| (method and evidence for the jury) | **Method**: equations, validation vs baseline, parity plots, model comparison, synthetic PTA check |
 
 ## Running the evaluation demo
 
