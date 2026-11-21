@@ -208,7 +208,7 @@ p<sub>wf</sub>. So if you know p<sub>wf</sub> and the reservoir's state, you kno
 | `choke_events.csv` | 66 | Each time a choke setting changed. 0% = closed (well shut in). |
 | `reservoir_pvt.csv` | 10 | Rock and fluid properties per well (Section 2) |
 | `well_completion.csv` | 10 | Gauge depth, gas-lift valve depth, tubing size, solution GOR, cumulative oil produced before 1 Jan 2025 |
-| `pta_results.csv` | 17 | Reference PTA answers. **Deliberately not used** (team decision): our PTA must stand on its own. |
+| `pta_results.csv` | 17 | Reference PTA answers (11 of them for Oct–Dec shut-ins whose pressure data we do not have). **Never used for fitting**; the six inside the training period are compared with our results in the notebook. |
 
 The data looks like it was generated with physical models (wells named GL-xx, very clean physics), with errors planted
 on purpose to test whether teams check data quality.
@@ -563,7 +563,7 @@ Negative Δp<sub>skin</sub> means the near-wellbore zone *helps* flow.
 
 ### 6.7 How we know the PTA engine is right
 
-We didn't use the reference answers. Instead we generated **synthetic build-ups with known answers** from the exact analytical
+We never fit to the reference answers; the six that overlap the training period agree with ours to 1.2% on m, 3.6% on k and 0.09 on skin. Independently, we generated **synthetic build-ups with known answers** from the exact analytical
 solution (radial flow + wellbore storage + skin, solved in Laplace space and inverted numerically with the Stehfest algorithm), added
 realistic gauge noise (0.3 psi) and ran them through the same automatic pipeline:
 

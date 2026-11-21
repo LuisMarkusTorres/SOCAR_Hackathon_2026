@@ -110,7 +110,12 @@ pooled choke-flow (Gilbert-type) ridge regression, gradient-boosted trees on all
 model. In the previous run the physics model won (oil 3.5% against 5.1% for gradient-boosted trees and 6.0% for the
 baseline); the notebook has the current numbers.
 
-PTA engine on analytical build-ups with known answers: k within 2.3%, skin within 0.15 (`tests/test_pta_synthetic.py`).
+PTA against the organisers' reference answers (`data/raw/pta_results.csv`, used only to check, never to fit): on the six
+build-ups inside the training period, Horner slope within 1.2%, permeability within 3.6% and skin within 0.09 on average.
+The remaining k difference is the oil rate (our VFM rate is 2.7% above the rate the reference implies), not the slope.
+PTA engine on analytical build-ups with known answers: k within 2.3%, skin within 0.15 (`tests/test_pta_synthetic.py`);
+on a 144-case grid of short and storage-heavy shut-ins the window rules cut the mean k error from 19.8% to 5.8% and left
+no error above 20% unflagged.
 p* is also reported at datum depth, using a live-oil gradient estimated from the tests' oil and gas gravity with Rs and Bo
 from the PVT table (about 0.34 psi/ft); m, k, skin and Δp skin are differences and do not depend on it.
 
