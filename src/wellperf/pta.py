@@ -15,6 +15,9 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import least_squares
+
+from .analytical import buildup_dp
 
 
 @dataclass
@@ -42,6 +45,15 @@ class BuildupResult:
     deriv_m_psi_cycle: float          # m implied by the derivative plateau (cross-check)
     flags: list = field(default_factory=list)
     data: dict = field(default_factory=dict)   # arrays for plots
+    # analytical model match (storage + skin + k), always run as a cross-check; primary only when no radial flow
+    k_match_md: float = np.nan
+    skin_match: float = np.nan
+    storage_bbl_psi: float = np.nan
+    match_nrmse: float = np.nan       # RMS misfit / pressure-rise range (0 = perfect)
+    t_iarf_model_hr: float = np.nan   # when radial flow starts according to the matched model
+    k_match_p10_md: float = np.nan    # 80% range of the matched k (from the fit's Jacobian)
+    k_match_p90_md: float = np.nan
+    result_source: str = "Horner"     # 'Horner' | 'model match'
 
     def as_row(self) -> dict:
         d = {k: v for k, v in self.__dict__.items() if k not in ("data", "flags")}
@@ -93,6 +105,34 @@ def bourdet_derivative(te: np.ndarray, dp: np.ndarray, L: float = 0.15) -> np.nd
     return der
 
 
+def storage_end_index(g: np.ndarray, slope: np.ndarray) -> int | None:
+    """Index after which radial flow may be looked for, or None when the data is still storage-dominated.
+
+    Wellbore storage shows as a rising derivative (unit slope) that peaks in a hump and comes back down before
+    the radial-flow plateau. A flat stretch at the TOP of the hump is not radial flow, so when a storage rise is
+    visible the window may only start once the derivative has fallen clearly below its peak and flattened again.
+    When no rise is visible (the data starts after storage) the first flat point is used.
+    """
+    n = len(g)
+    early = slice(0, max(3, n // 2))
+    peak = int(np.argmax(g[early]))
+    rising = np.nanmax(slope[: peak + 1]) > 0.5 if peak > 0 else False
+    if not rising:
+        for i in range(n):
+            if abs(slope[i]) < 0.25:
+                return i
+        return None
+    # a storage rise is visible: wait for the descent (derivative well below the hump) and the flattening after it
+    g_peak = g[peak]
+    for i in range(peak + 1, n):
+        if g[i] < 0.75 * g_peak and slope[i] > -0.15:
+            return i
+    # derivative never came down far enough: the plateau (if any) is still ahead of the data
+    if slope[-1] < -0.15 or np.nanmin(g[peak:]) > 0.75 * g_peak:
+        return None
+    return None
+
+
 def find_iarf_window(dt: np.ndarray, der: np.ndarray, min_span_cycles: float = 0.5,
                      t_max: float | None = None) -> tuple[float, float, float]:
     """Infinite-acting radial flow = flattest stretch of the log-log derivative.
@@ -109,18 +149,21 @@ def find_iarf_window(dt: np.ndarray, der: np.ndarray, min_span_cycles: float = 0
         return (np.nan, np.nan, np.inf)
     lt, lg = np.log10(t), np.log10(g)
     slope = np.gradient(lg, lt)
-    # end of wellbore storage: first time the local derivative slope falls below 0.25 after any hump
-    wbs_end_idx = 0
-    peak = int(np.argmax(g[: max(3, len(g) // 2)]))
-    for i in range(peak, len(slope)):
-        if slope[i] < 0.25:
-            wbs_end_idx = i
-            break
+    sm = pd.Series(slope).rolling(5, center=True, min_periods=1).mean().to_numpy()   # ~0.2 log cycle
+    wbs_end_idx = storage_end_index(g, sm)
+    if wbs_end_idx is None:
+        return (np.nan, np.nan, np.inf)
     best = (np.nan, np.nan, np.inf)
+    gs = pd.Series(g).rolling(5, center=True, min_periods=1).median().to_numpy()
     for i in range(wbs_end_idx, len(t)):
         for j in range(i + 2, len(t)):
             span = lt[j] - lt[i]
             if span < min_span_cycles:
+                continue
+            # the storage hump always lies above the radial-flow level: a candidate that sits clearly above the
+            # derivative seen later in the record is the top of the hump, not radial flow
+            later = gs[j + 1:]
+            if len(later) >= 3 and np.median(gs[i: j + 1]) > 1.25 * later.min():
                 continue
             seg = slope[i: j + 1]
             score = np.mean(np.abs(seg)) + 0.02 / span   # favour flat, then longer windows
@@ -146,6 +189,68 @@ def horner_fit(dt: np.ndarray, p: np.ndarray, tp: float, t0: float, t1: float):
     r2 = 1 - ss_res / ss_tot if ss_tot > 0 else np.nan
     p1hr = p_star - m * np.log10(tp + 1.0)
     return float(m), float(p_star), float(p1hr), float(r2)
+
+
+# --------------------------------------------------------------------------- analytical model match
+def model_match(dt: np.ndarray, dp: np.ndarray, te: np.ndarray, der: np.ndarray, q: float, tp: float,
+                props: dict, k0: float | None = None) -> dict:
+    """Fit k, skin and wellbore storage C of the storage+skin radial-flow model to the whole build-up.
+
+    Residuals: pressure rise (scaled by its range) and the log of the Bourdet derivative, so both the level
+    and the shape of the curve count. Three physical parameters against the full record, no tuning constants
+    beyond the parameter bounds. Returns the fit and the time at which the matched model reaches radial flow.
+    """
+    ok = np.isfinite(dp) & (dp > 0) & np.isfinite(dt)
+    dt, dp, te = dt[ok], dp[ok], te[ok]
+    der_ok = np.isfinite(der[ok]) & (der[ok] > 0)
+    rng = float(dp.max() - dp.min()) or 1.0
+    h, B, mu = props["h"], props["B"], props["mu"]
+    C0 = float(np.clip(np.median(q * B * dt[:5] / (24.0 * dp[:5])), 1e-4, 5.0))
+    if not k0 or not np.isfinite(k0) or k0 <= 0:
+        late = der[ok][der_ok][-5:]
+        k0 = float(np.clip(70.6 * q * B * mu / (h * np.median(late)), 0.5, 5000)) if len(late) else 50.0
+
+    def resid(x):
+        k, sk, C = 10 ** x[0], x[1], 10 ** x[2]
+        m_dp = buildup_dp(dt, k, sk, C, q, tp, props)
+        r = [(m_dp - dp) / rng]
+        if der_ok.sum() >= 5:
+            m_der = bourdet_derivative(te, m_dp)
+            both = der_ok & np.isfinite(m_der) & (m_der > 0)
+            r.append(0.5 * (np.log(m_der[both]) - np.log(der[ok][both])) / np.sqrt(max(both.sum(), 1) / max(len(dp), 1)))
+        return np.concatenate(r)
+
+    late = der[ok][der_ok][-5:]
+    k_late = float(np.clip(70.6 * q * B * mu / (h * np.median(late)), 0.5, 5000)) if len(late) else k0
+    starts = {(round(np.log10(kk), 2), s0) for kk in (k0, k_late, 1.0, 10.0, 100.0, 1000.0) for s0 in (0.0, 5.0)}
+    fit = None
+    for lk, s0 in sorted(starts):
+        f = least_squares(resid, np.array([lk, s0, np.log10(C0)]), bounds=([-1.0, -6.0, -4.5], [4.5, 60.0, 1.0]),
+                          method="trf", max_nfev=150)
+        if fit is None or f.cost < fit.cost:
+            fit = f
+    k, sk, C = 10 ** fit.x[0], float(fit.x[1]), 10 ** fit.x[2]
+    # uncertainty from the Jacobian: when only the storage hump is in the record, k and skin trade off
+    try:
+        J = fit.jac
+        dof = max(len(fit.fun) - 3, 1)
+        cov = np.linalg.inv(J.T @ J) * (2 * fit.cost / dof)
+        sd_logk, sd_skin = float(np.sqrt(cov[0, 0])), float(np.sqrt(cov[1, 1]))
+    except np.linalg.LinAlgError:
+        sd_logk = sd_skin = np.nan
+    m_dp = buildup_dp(dt, k, sk, C, q, tp, props)
+    nrmse = float(np.sqrt(np.mean((m_dp - dp) ** 2)) / rng)
+    # start of radial flow in the matched model: derivative within 5% of its plateau 70.6 qB mu/(kh)
+    grid = np.logspace(np.log10(dt.min()), np.log10(dt.max()) + 2.0, 300)
+    tgrid = tp * grid / (tp + grid)
+    g_der = bourdet_derivative(tgrid, buildup_dp(grid, k, sk, C, q, tp, props))
+    plateau = 70.6 * q * B * mu / (k * h)
+    off = np.isfinite(g_der) & (np.abs(g_der / plateau - 1) > 0.05)
+    t_iarf = float(grid[off].max()) if off.any() else float(grid[np.isfinite(g_der)].min())
+    return dict(k=float(k), skin=sk, C=float(C), nrmse=nrmse, t_iarf=t_iarf, dp_model=m_dp, dt_model=dt,
+                der_model=bourdet_derivative(te, m_dp), ok=fit.success,
+                k_p10=float(10 ** (np.log10(k) - 1.2816 * sd_logk)), k_p90=float(10 ** (np.log10(k) + 1.2816 * sd_logk)),
+                skin_sd=sd_skin, sd_logk=sd_logk)
 
 
 # --------------------------------------------------------------------------- main interpretation
@@ -178,46 +283,104 @@ def interpret_buildup(minute: pd.DataFrame, event: pd.Series, q_stbd: float, np_
     B, ct, rw = props.oil_fvf_rb_stb, props.total_compressibility_1_psi, props.wellbore_radius_ft
     re = float(np.sqrt(props.estimated_drainage_area_acres * 43560.0 / np.pi))
 
+    q_ok = np.isfinite(q_stbd) and q_stbd > 0
+    mprops = dict(h=h, phi=phi, mu=mu, B=B, ct=ct, rw=rw)
+    t0 = t1 = np.nan
     if window is None:
         t0, t1, score = find_iarf_window(dt, der)
-        src = "auto (flattest derivative)"
-        if not np.isfinite(t0):
-            t0, t1, src = dt.max() / 10, dt.max(), "fallback (last log cycle)"
-            flags.append("no derivative plateau found")
+        src = "auto (flattest derivative after storage)"
     else:
         t0, t1 = window
         src = "manual"
+
+    # analytical model match: always computed as a cross-check (needs pwf and a rate)
+    match = None
+    if q_ok and np.isfinite(pwf):
+        try:
+            k_guess = None
+            if np.isfinite(t0):
+                m0 = horner_fit(dt, p, tp, t0, t1)[0]
+                k_guess = 162.6 * q_stbd * B * mu / (m0 * h) if np.isfinite(m0) and m0 > 0 else None
+            match = model_match(dt, dp, te, der, q_stbd, tp, mprops, k_guess)
+        except Exception:
+            match = None
+    credible = match is not None and match["ok"] and match["nrmse"] < 0.04
+    half_cycle_left = lambda t_start: np.log10(dt.max() / t_start) >= 0.5
+
+    if window is None and credible and np.isfinite(t0) and t0 < 0.5 * match["t_iarf"] and half_cycle_left(match["t_iarf"]):
+        # the data plateau starts well before the matched model reaches radial flow: move the window out
+        t0, src = match["t_iarf"], "auto (start from model match)"
+        t1 = max(t1, dt.max())
+    if window is None and not np.isfinite(t0) and credible and half_cycle_left(match["t_iarf"]):
+        t0, t1, src = match["t_iarf"], dt.max(), "auto (start from model match)"
+
+    source = "Horner"
+    if window is None and credible and np.isfinite(t0) and t0 < 0.5 * match["t_iarf"]:
+        # the matched model says the plateau is still inside the storage transition; trust that only when the
+        # Horner line also disagrees with the match (a slow approach from below with agreeing k stays Horner)
+        m_try = horner_fit(dt, p, tp, t0, t1)[0]
+        k_try = 162.6 * q_stbd * B * mu / (m_try * h) if np.isfinite(m_try) and m_try > 0 else np.nan
+        if not np.isfinite(k_try) or abs(match["k"] / k_try - 1) > 0.3:
+            t0 = np.nan
+    if not np.isfinite(t0):
+        # no radial flow in the record: the matched model is the only defensible estimate
+        t0, t1, src = dt.max() / 10 ** 0.5, dt.max(), "none (storage-dominated)"
+        if credible:
+            source = "model match"
+            flags.append(f"storage-dominated shut-in: no radial-flow plateau in the data; k and skin come from the "
+                         f"analytical model match (storage + skin), not from a Horner line; k 80% range "
+                         f"{match['k_p10']:.0f}–{match['k_p90']:.0f} md")
+        else:
+            flags.append("no radial-flow plateau found and no credible model match: results are unreliable")
 
     m, p_star, p1hr, r2 = horner_fit(dt, p, tp, t0, t1)
     if not np.isfinite(m) or m <= 0:
         t0, t1, src = dt.max() / 10, dt.max(), "fallback (last log cycle)"
         m, p_star, p1hr, r2 = horner_fit(dt, p, tp, t0, t1)
         flags.append("straight-line fit failed in the chosen window; last log cycle used instead")
-    q_ok = np.isfinite(q_stbd) and q_stbd > 0
-    k = 162.6 * q_stbd * B * mu / (m * h) if q_ok else np.nan
-    skin = 1.151 * ((p1hr - pwf) / m - np.log10(k / (phi * mu * ct * rw ** 2)) + 3.23)
+    if source == "model match":
+        k = match["k"]
+        skin = match["skin"]
+        m = 162.6 * q_stbd * B * mu / (k * h)
+    else:
+        k = 162.6 * q_stbd * B * mu / (m * h) if q_ok else np.nan
+        skin = 1.151 * ((p1hr - pwf) / m - np.log10(k / (phi * mu * ct * rw ** 2)) + 3.23)
     dps = 0.87 * m * skin
     fe = (p_star - pwf - dps) / (p_star - pwf) if p_star > pwf else np.nan
     r_inv = float(np.sqrt(k * t1 / (948.0 * phi * mu * ct)))
     sel = (dt >= t0) & (dt <= t1) & np.isfinite(der)
     deriv_m = float(np.median(der[sel]) * np.log(10)) if sel.any() else np.nan
 
-    if np.isfinite(r2) and r2 < 0.98:
+    if source == "Horner" and np.isfinite(r2) and r2 < 0.98:
         flags.append(f"Horner fit R2 {r2:.3f} < 0.98")
-    if np.isfinite(deriv_m) and abs(deriv_m / m - 1) > 0.15:
+    if source == "Horner" and np.isfinite(deriv_m) and abs(deriv_m / m - 1) > 0.15:
         flags.append(f"derivative-plateau m differs from Horner m by {100 * (deriv_m / m - 1):+.0f}%")
     if np.isfinite(r_inv) and r_inv > re:
         flags.append("radius of investigation exceeds drainage radius in window (boundary effects possible)")
-    if np.log10(t1 / t0) < 0.5:
+    if source == "Horner" and np.log10(t1 / t0) < 0.5:
         flags.append("radial-flow window shorter than half a log cycle")
     if event.duration_hr < 6:
         flags.append("short shut-in (< 6 h)")
+    if source == "Horner" and credible and np.isfinite(k) and abs(match["k"] / k - 1) > 0.3:
+        flags.append(f"model match gives k = {match['k']:.0f} md, skin {match['skin']:.1f} "
+                     f"({100 * (match['k'] / k - 1):+.0f}% on k): the plateau may not be true radial flow")
 
     data = dict(dt_raw=dt_raw, p_raw=p_raw, dt=dt, p=p, dp=dp, te=te, der=der,
                 horner_x=(tp + dt) / dt, tp=tp)
-    return BuildupResult(event.well_name, event.t_shut, float(event.duration_hr), float(q_stbd), float(tp),
-                         float(np_stb), float(pwf), m, p_star, p1hr, float(k), float(skin), float(dps), float(fe),
-                         float(t0), float(t1), src, r2, r_inv, re, deriv_m, flags, data)
+    if match is not None:
+        data.update(dt_model=match["dt_model"], dp_model=match["dp_model"], der_model=match["der_model"])
+    r = BuildupResult(event.well_name, event.t_shut, float(event.duration_hr), float(q_stbd), float(tp),
+                      float(np_stb), float(pwf), m, p_star, p1hr, float(k), float(skin), float(dps), float(fe),
+                      float(t0), float(t1), src, r2, r_inv, re, deriv_m, flags, data)
+    if match is not None:
+        r.k_match_md, r.skin_match, r.storage_bbl_psi = match["k"], match["skin"], match["C"]
+        r.match_nrmse, r.t_iarf_model_hr = match["nrmse"], match["t_iarf"]
+        r.k_match_p10_md, r.k_match_p90_md = match["k_p10"], match["k_p90"]
+        if source == "model match" and np.isfinite(match["sd_logk"]) and match["sd_logk"] > 0.15:
+            r.flags.append(f"k and skin are poorly separable from this record (k 80% range "
+                           f"{match['k_p10']:.0f}–{match['k_p90']:.0f} md): a longer shut-in is needed")
+    r.result_source = source
+    return r
 
 
 def cumulative_oil_at(vfm_daily: pd.DataFrame, static: pd.DataFrame, well: str, t: pd.Timestamp) -> float:

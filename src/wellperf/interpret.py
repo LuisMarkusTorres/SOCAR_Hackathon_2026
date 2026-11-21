@@ -40,6 +40,10 @@ def interpret(r: BuildupResult, static: pd.DataFrame) -> list[tuple[str, str]]:
         out.append(("info", f"By the end of the radial-flow window ({r.window_end_hr:.2g} h) the pressure signal has "
                             f"reached about {r.r_inv_window_end_ft:,.0f} ft, still inside the {r.drainage_radius_ft:,.0f} ft "
                             f"drainage radius, so the window is not distorted by boundaries."))
+    if r.result_source == "Horner" and np.isfinite(r.k_match_md) and np.isfinite(r.k_md):
+        if abs(r.k_match_md / r.k_md - 1) <= 0.3:
+            out.append(("good", f"The analytical model match (storage + skin, whole build-up) gives k {r.k_match_md:,.0f} md "
+                                f"and skin {r.skin_match:.2f}, consistent with the Horner line."))
     for f in r.flags:
         out.append(("warn", f))
     return out

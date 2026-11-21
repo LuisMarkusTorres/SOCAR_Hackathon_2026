@@ -41,6 +41,10 @@ def loglog(r, ax=None):
     ax.loglog(d["dt"][ok], d["der"][ok], "^", ms=4, color=ORANGE, label="Bourdet derivative Δp′")
     lvl = r.m_psi_cycle / np.log(10)
     ax.axhline(lvl, color=ORANGE, lw=1, ls="--", label=f"radial-flow level m/2.303 = {lvl:.1f} psi")
+    if "dp_model" in d:
+        ax.loglog(d["dt_model"], d["dp_model"], "-", lw=1, color=INK, label=f"model match: k {r.k_match_md:.0f} md, s {r.skin_match:.1f}")
+        okm = np.isfinite(d["der_model"]) & (d["der_model"] > 0)
+        ax.loglog(d["dt_model"][okm], d["der_model"][okm], ":", lw=1, color=INK)
     ax.set(xlabel="Shut-in time Δt (h)", ylabel="Δp, Δp′ (psi)", title="Log-log diagnostic")
     ax.legend(loc="lower right", fontsize=8)
     return ax

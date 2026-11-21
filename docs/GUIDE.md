@@ -625,7 +625,7 @@ how much they could matter for scoring.
 |---|---|---|
 | **A backup model using only surface sensors** (for when the downhole gauge fails) | Only **one** well-day in the data has a gauge outage (GL-06, 24 Jun). It is bridged by interpolation and flagged. | Medium if hidden data has more gauge failures |
 | **Choke-equation model** as a second, independent rate estimate | Built as a benchmark (choke-flow ridge); not used as a second estimate in the app | Low–medium: redundancy and fault detection story |
-| **Analytical model matching** on the real build-ups (fit the full curve, not just the straight line) | Implemented only for verification (synthetic tests) | Medium: a stronger PTA story, gives wellbore storage C |
+| **Analytical model matching** on the real build-ups | Built: every build-up is matched (k, skin, storage C) as a cross-check; it takes over, flagged, when the shut-in ends before radial flow | — |
 | **Boundary analysis and true average reservoir pressure** (e.g. MBH method) | Not required. p\* is reported instead. | Low for scoring, nice for engineering |
 | **Full uncertainty propagation in PTA** (Monte Carlo over rate and PVT) | Only the rate→k band is shown | Low–medium |
 | **Variable-rate superposition** for build-ups | The brief specifies a single daily rate (Horner) | Low |

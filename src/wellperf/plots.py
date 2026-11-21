@@ -158,6 +158,12 @@ def loglog_plot(r) -> go.Figure:
     lvl = m / np.log(10)
     fig.add_trace(go.Scatter(x=[d["dt"].min(), d["dt"].max()], y=[lvl, lvl], mode="lines",
                              line=dict(color=ORANGE, width=1, dash="dash"), name=f"IARF level m/2.303 = {lvl:.1f} psi"))
+    if "dp_model" in d:
+        fig.add_trace(go.Scatter(x=d["dt_model"], y=d["dp_model"], mode="lines", line=dict(color=INK2, width=1.2),
+                                 name=f"model match: k {r.k_match_md:.0f} md, s {r.skin_match:.1f}", hoverinfo="skip"))
+        okm = np.isfinite(d["der_model"]) & (d["der_model"] > 0)
+        fig.add_trace(go.Scatter(x=d["dt_model"][okm], y=d["der_model"][okm], mode="lines",
+                                 line=dict(color=INK2, width=1.2, dash="dot"), name="model derivative", hoverinfo="skip"))
     fig.update_xaxes(type="log", title="Shut-in time Δt (h)", dtick=1,
                      range=[np.log10(float(np.min(d["dt"])) * 0.7), np.log10(float(np.max(d["dt"])) * 1.5)])
     fig.update_yaxes(type="log", title="Δp, Δp′ (psi)", dtick=1)

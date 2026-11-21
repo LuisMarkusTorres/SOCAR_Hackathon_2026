@@ -87,7 +87,10 @@ with left:
 2. The build-up is resampled in log time and the **Bourdet derivative** is computed on Agarwal equivalent time.
 3. The **radial-flow window** is the flattest stretch of the derivative after wellbore storage (at least half a
    log cycle). It can be overridden by hand on the Build-up tests page.
-4. A straight line on the **Horner plot** gives the slope $m$ and $p^*$; then, in field units,
+4. The storage + skin analytical model (Laplace space, Stehfest inversion) is fitted to the whole build-up as a
+   cross-check. It also tells when radial flow starts; when that is after the end of the shut-in, the record is
+   storage-dominated and the match replaces the Horner line, with a flag and an 80% range on k.
+5. A straight line on the **Horner plot** gives the slope $m$ and $p^*$; then, in field units,
 
 $$k = \frac{162.6\,q\,B\,\mu}{m\,h}, \qquad s = 1.151\left[\frac{p_{1hr} - p_{wf}}{m} - \log_{10}\frac{k}{\phi\,\mu\,c_t\,r_w^2} + 3.23\right], \qquad \Delta p_{skin} = 0.87\,m\,s$$
 

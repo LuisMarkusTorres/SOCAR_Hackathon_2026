@@ -40,3 +40,19 @@ def test_missing_rate_gives_slope_but_no_k():
 def test_too_few_readings_raises():
     with pytest.raises(ValueError):
         run_case(110.0, 6.0, 0.01, shut_hr=0.1)
+
+
+def test_storage_dominated_short_shutin_is_flagged_not_wrong():
+    """6 h shut-in with large storage: no radial flow in the record. The old picker returned k 50-90 % low with no
+    flag; now the model match takes over and says so."""
+    r = run_case(110.0, 6.0, 0.15, shut_hr=6.0, tp_hr=200000.0, noise=0.5)
+    assert r.result_source == "model match"
+    assert any("storage-dominated" in f for f in r.flags)
+    assert abs(r.k_md / 110.0 - 1) < 0.35
+    assert np.isfinite(r.k_match_p10_md) and r.k_match_p10_md <= r.k_md <= r.k_match_p90_md
+
+
+def test_long_shutin_keeps_horner_and_match_agrees():
+    r = run_case(110.0, 6.0, 0.01, shut_hr=72.0)
+    assert r.result_source == "Horner"
+    assert abs(r.k_match_md / 110.0 - 1) < 0.1 and abs(r.skin_match - 6.0) < 0.5

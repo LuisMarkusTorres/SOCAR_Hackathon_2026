@@ -13,17 +13,18 @@ well = UI.well()
 def all_events_table():
     UI.section("All build-ups", "Automatic interpretation of every shut-in. This is what the PTA export contains.")
     show = ["well_name", "t_shut", "duration_hr", "q_stbd", "m_psi_cycle", "k_md", "skin", "dP_skin", "p_star_psia",
-            "p_star_datum_psia", "flow_efficiency", "r2", "flags"]
+            "p_star_datum_psia", "k_match_md", "skin_match", "result_source", "r2", "flags"]
     t = ws.pta[[c for c in show if c in ws.pta]].copy()
     t["flags"] = t["flags"].replace("", None)
     UI.table(t, key_col="well_name",
              labels={"well_name": "Well", "t_shut": "Shut in", "duration_hr": "Hours", "q_stbd": "q, STB/d",
                      "m_psi_cycle": "m, psi/cycle", "k_md": "k, md", "skin": "Skin", "dP_skin": "Δp skin, psi",
                      "p_star_psia": "p* gauge, psia", "p_star_datum_psia": "p* datum, psia",
-                     "flow_efficiency": "Flow eff.", "r2": "R²", "flags": "Flags"},
+                     "k_match_md": "k match, md", "skin_match": "Skin match", "result_source": "Source",
+                     "r2": "R²", "flags": "Flags"},
              formats={"duration_hr": "{:.1f}", "q_stbd": "{:,.0f}", "m_psi_cycle": "{:.2f}", "k_md": "{:.1f}",
                       "skin": "{:.2f}", "dP_skin": "{:.1f}", "p_star_psia": "{:,.0f}", "p_star_datum_psia": "{:,.0f}",
-                      "flow_efficiency": "{:.2f}", "r2": "{:.4f}"})
+                      "k_match_md": "{:.1f}", "skin_match": "{:.2f}", "r2": "{:.4f}"})
 
 
 if ws.pta.empty:
@@ -112,6 +113,20 @@ with results_box:
     st.caption(f"p* {fmt(r.p_star_psia, ',.0f', ' psia')} at gauge depth · flow efficiency "
                f"{fmt(r.flow_efficiency, '.2f')} · Pwf at shut-in {fmt(r.pwf_psia, ',.0f', ' psia')} · "
                f"Horner fit R² {r.r2:.4f} · window {r.window_start_hr:.3g}–{r.window_end_hr:.3g} h")
+    if r.result_source == "model match":
+        UI.note(f"<b>Result from the analytical model match.</b> The record is storage-dominated (the matched model "
+                f"reaches radial flow at {r.t_iarf_model_hr:.3g} h, after the {r.duration_hr:.0f} h shut-in), so no "
+                f"Horner line is valid. k and skin come from fitting the storage + skin model to the whole build-up: "
+                f"k 80% range {r.k_match_p10_md:,.0f}–{r.k_match_p90_md:,.0f} md, storage C "
+                f"{r.storage_bbl_psi:.3f} bbl/psi, misfit {100 * r.match_nrmse:.1f}% of the pressure rise.", "warn")
+    elif np.isfinite(r.k_match_md):
+        agree = abs(r.k_match_md / r.k_md - 1) <= 0.3 if np.isfinite(r.k_md) else False
+        UI.note(f"<b>Cross-check, analytical model match:</b> k {r.k_match_md:,.0f} md "
+                f"(80% range {r.k_match_p10_md:,.0f}–{r.k_match_p90_md:,.0f}), skin {r.skin_match:.2f}, "
+                f"storage C {r.storage_bbl_psi:.3f} bbl/psi, misfit {100 * r.match_nrmse:.1f}% of the pressure rise; "
+                f"radial flow from {r.t_iarf_model_hr:.3g} h. "
+                + ("Agrees with the Horner result." if agree else "Differs from the Horner result; see the flags."),
+                "good" if agree else "warn")
 
 # ---------------------------------------------------------------- diagnostic plots
 with plots_box:
@@ -121,7 +136,8 @@ with plots_box:
         UI.howto("<b>Start here.</b> Blue is the pressure rise since shut-in; orange is its derivative. The early hump "
                  "is <b>wellbore storage</b> (fluid still entering the well), which says nothing about the rock. A "
                  "<b>flat orange stretch</b> is radial flow in the reservoir: its height gives k. The shaded band is "
-                 "the window used for every number above.")
+                 "the window used for every number above. The thin grey curves are the matched storage + skin "
+                 "model, a cross-check that uses the whole build-up including the early time.")
     with g2:
         st.plotly_chart(PLT.horner_plot(r), width="stretch")
         UI.howto("Pressure against Horner time (t<sub>p</sub>+Δt)/Δt. Shut-in time runs left to right; 1 means infinite "
