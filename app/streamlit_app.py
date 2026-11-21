@@ -5,7 +5,6 @@ The trained model is loaded from models/vfm_model.pkl (created by scripts/run_pi
 """
 from __future__ import annotations
 
-import io
 
 import pandas as pd
 import streamlit as st
@@ -28,15 +27,17 @@ def training_workspace(_bundle: dict | None) -> PL.Workspace:
     return PL.build(bundle=_bundle)           # trains from scratch only if no model file exists
 
 
+@st.cache_resource(show_spinner="Reading the uploaded files…")
+def read_uploads(files: tuple) -> tuple[dict, list]:
+    return PL.read_uploads(list(files))
+
+
 @st.cache_resource(show_spinner="Cleaning the uploaded data and running the flow meter and build-up analysis…")
-def uploaded_workspace(files: tuple, _base: PL.Workspace) -> PL.Workspace:
-    kinds = {k: pd.read_csv(io.BytesIO(b), parse_dates=pdates) for k, b, pdates in files}
+def uploaded_workspace(files: tuple, recalibrate: bool, _base: PL.Workspace) -> PL.Workspace:
+    kinds, _ = read_uploads(files)
     return PL.apply_to_new_hf(_base, kinds["sensors"], kinds.get("choke"), kinds.get("tests"), kinds.get("pvt"),
-                              kinds.get("completion"))
+                              kinds.get("completion"), recalibrate=recalibrate)
 
-
-PARSE_DATES = {"sensors": ["timestamp"], "choke": ["timestamp"], "tests": ["test_start", "test_end"],
-               "completion": ["first_production_date"], "pvt": None}
 
 bundle = load_model()
 has_training = PL.training_data_available()
@@ -56,46 +57,42 @@ with st.sidebar:
     source = st.segmented_control("Data source", options, default=options[0], required=True, key="source",
                                   label_visibility="collapsed")
     if source == "Upload":
-        ups = st.file_uploader("Raw well data (CSV)", type=["csv"], accept_multiple_files=True,
-                               help="Drop all files at once. Required: per-minute sensor data. Optional: choke events, "
-                                    "well tests (to score the model), reservoir/PVT and completion tables. "
-                                    "Files are recognised by their columns.")
+        ups = st.file_uploader("Raw well data", type=list(PL.UPLOAD_EXTENSIONS), accept_multiple_files=True,
+                               help="Drop all files at once: CSV, Excel, Parquet, or a zip of them. Required: "
+                                    "per-minute sensor data. Optional: choke events, well tests (to score the model), "
+                                    "reservoir/PVT and completion tables. Tables are recognised by their columns.")
         found, notes = {}, []
-        for f in ups or []:
-            try:
-                head = pd.read_csv(io.BytesIO(f.getvalue()), nrows=5)
-            except Exception:
-                notes.append(f"{f.name}: not a readable CSV")
-                continue
-            kind = PL.classify_upload(head)
-            if kind is None:
-                notes.append(f"{f.name}: not recognised, ignored")
-            elif kind in found:
-                notes.append(f"{f.name}: second {PL.UPLOAD_KINDS[kind].lower()} file, ignored")
-            else:
-                found[kind] = f
-        if found:
-            st.markdown("<div class='facts'>" + "<br>".join(
-                f"<span>{PL.UPLOAD_KINDS[k]}</span> {found[k].name}" for k in PL.UPLOAD_KINDS if k in found)
-                + "</div>", unsafe_allow_html=True)
-        for n in notes:
-            st.caption(n)
+        if ups:
+            files = tuple((f.name, f.getvalue()) for f in ups)
+            found, notes = read_uploads(files)
+            if found:
+                st.markdown("<div class='facts'>" + "<br>".join(
+                    f"<span>{PL.UPLOAD_KINDS[k]}</span> {len(found[k]):,} rows" for k in PL.UPLOAD_KINDS if k in found)
+                    + "</div>", unsafe_allow_html=True)
+            for n in notes:
+                st.caption(n)
+        recal = False
+        if "tests" in found:
+            recal = st.checkbox("Recalibrate the flow meter with these well tests", value=False, key="recalibrate",
+                                help="The uploaded tests are always scored first with the model as trained (out of "
+                                     "sample). With this on, the model is then refitted on the training tests plus "
+                                     "the uploaded ones before the daily rates are predicted.")
         if "sensors" in found:
-            files = tuple((k, f.getvalue(), PARSE_DATES[k]) for k, f in sorted(found.items()))
             try:
-                ws = uploaded_workspace(files, base)
+                ws = uploaded_workspace(files, recal, base)
             except Exception as e:  # clear error state instead of a stack trace
                 st.error(f"Could not process the upload: {e}")
                 ws = None
         elif ups:
-            st.warning("The per-minute sensor file is required.")
+            st.warning("The per-minute sensor table is required (columns timestamp, well_name, dh_pressure_psia, …).")
         if ws is None and has_training:
             st.caption("Showing the training period until a sensor file is uploaded.")
             ws = base
 
     if ws is not None:
         d0, d1 = pd.to_datetime(ws.vfm_daily.date).min(), pd.to_datetime(ws.vfm_daily.date).max()
-        st.caption(f"{ws.source.capitalize()}: {d0:%d %b} – {d1:%d %b %Y} · {ws.vfm_daily.well_name.nunique()} wells")
+        st.caption(f"{ws.source.capitalize()}: {d0:%d %b} – {d1:%d %b %Y} · {ws.vfm_daily.well_name.nunique()} wells"
+                   + (" · flow meter recalibrated" if ws.recalibrated else ""))
 
         st.markdown("<div class='side-label'>Well</div>", unsafe_allow_html=True)
         wells = sorted(ws.vfm_daily.well_name.unique())
@@ -116,8 +113,9 @@ with st.sidebar:
 
 if ws is None:
     UI.header("Well Performance Studio", "Upload raw well data in the sidebar to start")
-    UI.note("The trained flow-meter model is loaded. Drop the raw CSV files into the sidebar: the per-minute sensor "
-            "file is required; choke events, well tests, reservoir/PVT and completion tables are optional.", "info")
+    UI.note("The trained flow-meter model is loaded. Drop the raw files (CSV, Excel or a zip) into the sidebar: the "
+            "per-minute sensor table is required; choke events, well tests, reservoir/PVT and completion tables are "
+            "optional.", "info")
     st.stop()
 
 st.session_state["_ws"] = ws
@@ -126,6 +124,7 @@ pages = [
     st.Page("views/data_quality.py", title="Data quality"),
     st.Page("views/production.py", title="Production (VFM)"),
     st.Page("views/buildups.py", title="Build-up tests (PTA)"),
+    st.Page("views/method.py", title="Method & validation"),
     st.Page("views/export.py", title="Export"),
 ]
 st.navigation(pages, position="top").run()

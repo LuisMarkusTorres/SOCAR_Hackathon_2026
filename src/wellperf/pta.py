@@ -133,7 +133,9 @@ def find_iarf_window(dt: np.ndarray, der: np.ndarray, min_span_cycles: float = 0
 
 
 def horner_fit(dt: np.ndarray, p: np.ndarray, tp: float, t0: float, t1: float):
-    sel = (dt >= t0) & (dt <= t1)
+    sel = (dt >= t0) & (dt <= t1) & np.isfinite(p)
+    if sel.sum() < 3:
+        return np.nan, np.nan, np.nan, np.nan
     x = np.log10((tp + dt[sel]) / dt[sel])
     A = np.c_[np.ones(sel.sum()), x]
     (p_star, neg_m), *_ = np.linalg.lstsq(A, p[sel], rcond=None)
@@ -153,7 +155,16 @@ def interpret_buildup(minute: pd.DataFrame, event: pd.Series, q_stbd: float, np_
     bu, pwf = extract_buildup(minute, event.well_name, event.t_shut, event.t_reopen)
     flags = []
     dt_raw, p_raw = bu["dt_hr"].to_numpy(), bu["p_psia"].to_numpy()
-    tp = tp_override_hr if tp_override_hr else 24.0 * np_stb / q_stbd
+    if len(dt_raw) < 10:
+        raise ValueError(f"{event.well_name} {event.t_shut}: only {len(dt_raw)} valid gauge readings during the shut-in")
+    if tp_override_hr:
+        tp = float(tp_override_hr)
+    elif np.isfinite(q_stbd) and q_stbd > 0 and np.isfinite(np_stb) and np_stb > 0:
+        tp = 24.0 * np_stb / q_stbd
+    else:
+        # no usable rate: Horner time with a very long tp is almost MDH; k then cannot be scaled from m
+        tp = 24.0 * 365.0 * 10
+        flags.append("no VFM oil rate before the shut-in: tp set to 10 years, k and skin not available")
     dt, p = log_resample(dt_raw, p_raw)
     dp = p - pwf
     te = tp * dt / (tp + dt)                      # Agarwal equivalent time
@@ -178,7 +189,12 @@ def interpret_buildup(minute: pd.DataFrame, event: pd.Series, q_stbd: float, np_
         src = "manual"
 
     m, p_star, p1hr, r2 = horner_fit(dt, p, tp, t0, t1)
-    k = 162.6 * q_stbd * B * mu / (m * h)
+    if not np.isfinite(m) or m <= 0:
+        t0, t1, src = dt.max() / 10, dt.max(), "fallback (last log cycle)"
+        m, p_star, p1hr, r2 = horner_fit(dt, p, tp, t0, t1)
+        flags.append("straight-line fit failed in the chosen window; last log cycle used instead")
+    q_ok = np.isfinite(q_stbd) and q_stbd > 0
+    k = 162.6 * q_stbd * B * mu / (m * h) if q_ok else np.nan
     skin = 1.151 * ((p1hr - pwf) / m - np.log10(k / (phi * mu * ct * rw ** 2)) + 3.23)
     dps = 0.87 * m * skin
     fe = (p_star - pwf - dps) / (p_star - pwf) if p_star > pwf else np.nan
@@ -186,11 +202,11 @@ def interpret_buildup(minute: pd.DataFrame, event: pd.Series, q_stbd: float, np_
     sel = (dt >= t0) & (dt <= t1) & np.isfinite(der)
     deriv_m = float(np.median(der[sel]) * np.log(10)) if sel.any() else np.nan
 
-    if r2 < 0.98:
+    if np.isfinite(r2) and r2 < 0.98:
         flags.append(f"Horner fit R2 {r2:.3f} < 0.98")
     if np.isfinite(deriv_m) and abs(deriv_m / m - 1) > 0.15:
         flags.append(f"derivative-plateau m differs from Horner m by {100 * (deriv_m / m - 1):+.0f}%")
-    if r_inv > re:
+    if np.isfinite(r_inv) and r_inv > re:
         flags.append("radius of investigation exceeds drainage radius in window (boundary effects possible)")
     if np.log10(t1 / t0) < 0.5:
         flags.append("radial-flow window shorter than half a log cycle")
@@ -212,11 +228,29 @@ def cumulative_oil_at(vfm_daily: pd.DataFrame, static: pd.DataFrame, well: str, 
 
 
 def rate_before_shutin(vfm_daily: pd.DataFrame, well: str, t: pd.Timestamp) -> tuple[float, str]:
-    """VFM daily oil rate of the last full production day before the shut-in."""
-    d = vfm_daily[(vfm_daily.well_name == well) & (pd.to_datetime(vfm_daily.date) < t.normalize())]
-    full = d[d.on_stream_frac >= 0.999]
-    row = (full if len(full) else d).sort_values("date").iloc[-1]
-    return float(row["oil_rate_stbd"]), str(row["date"])
+    """VFM daily oil rate of the last full production day before the shut-in.
+
+    Falls back to the last partly flowing day, and when the shut-in starts on the first day of the data, to the
+    first flowing day after it (the rate is then labelled so the report shows where it came from).
+    """
+    w = vfm_daily[vfm_daily.well_name == well].assign(_d=lambda x: pd.to_datetime(x.date)).sort_values("_d")
+    w = w[w["oil_rate_stbd"].notna()]
+    before = w[w._d < t.normalize()]
+    full = before[before.on_stream_frac >= 0.999]
+    flowing = before[before.on_stream_frac > 0]
+    if len(full):
+        row = full.iloc[-1]
+    elif len(flowing):
+        row = flowing.iloc[-1]
+    else:
+        after = w[(w._d > t.normalize()) & (w.on_stream_frac >= 0.999)]
+        if not len(after):
+            return float("nan"), "no flowing day in the data"
+        row = after.iloc[0]
+        return float(row["oil_rate_stbd"]), f"{row['date']} (first full day after the shut-in)"
+    # a partial day's volume is scaled back to a flowing rate
+    frac = float(row["on_stream_frac"]) if row["on_stream_frac"] > 0 else 1.0
+    return float(row["oil_rate_stbd"]) / frac, str(row["date"])
 
 
 def run_all(minute: pd.DataFrame, events: pd.DataFrame, vfm_daily: pd.DataFrame, static: pd.DataFrame,
@@ -226,8 +260,18 @@ def run_all(minute: pd.DataFrame, events: pd.DataFrame, vfm_daily: pd.DataFrame,
         q, qdate = rate_before_shutin(vfm_daily, ev.well_name, ev.t_shut)
         npv = cumulative_oil_at(vfm_daily, static, ev.well_name, ev.t_shut)
         key = f"{ev.well_name} {ev.t_shut:%Y-%m-%d %H:%M}"
-        r = interpret_buildup(minute, ev, q, npv, static.loc[ev.well_name], window=(windows or {}).get(key))
+        props = static.loc[ev.well_name]
+        try:
+            r = interpret_buildup(minute, ev, q, npv, props, window=(windows or {}).get(key))
+        except ValueError:                          # too few gauge readings during the shut-in: nothing to interpret
+            continue
         r.data["q_date"] = qdate
+        # p* moved from gauge depth to datum depth with the live-oil gradient (pipeline.datum_gradient)
+        grad = float(props.get("fluid_gradient_psi_ft", np.nan))
+        dz = float(props.get("datum_tvd_ft", np.nan)) - float(props.get("gauge_tvd_ft", np.nan))
+        r.data["gradient_psi_ft"], r.data["gauge_to_datum_ft"] = grad, dz
+        r.data["p_star_datum_psia"] = r.p_star_psia + grad * dz if np.isfinite(grad) and np.isfinite(dz) else np.nan
         objs[key] = r
-        results.append({"event": key, **r.as_row(), "q_from_date": qdate})
+        results.append({"event": key, **r.as_row(), "q_from_date": qdate,
+                        "p_star_datum_psia": r.data["p_star_datum_psia"], "fluid_gradient_psi_ft": grad})
     return pd.DataFrame(results), objs

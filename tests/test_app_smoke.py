@@ -1,11 +1,15 @@
 """Smoke test: every page of the Streamlit app runs on the bundled data without exceptions."""
 from pathlib import Path
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
+from wellperf import pipeline as _PL
+
+needs_data = pytest.mark.skipif(not _PL.training_data_available(), reason="needs the training data in data/raw")
 APP = Path(__file__).resolve().parents[1] / "app" / "streamlit_app.py"
 PAGES = ["views/overview.py", "views/data_quality.py", "views/production.py", "views/buildups.py",
-         "views/export.py"]
+         "views/method.py", "views/export.py"]
 
 
 def _ok(at):
@@ -13,17 +17,23 @@ def _ok(at):
     assert not at.error, [e.value for e in at.error]
 
 
+@needs_data
 def test_all_pages_and_wells():
     at = AppTest.from_file(str(APP), default_timeout=300)
     at.run()
     _ok(at)
-    for well in ["GL-01", "GL-03", "GL-04"]:          # GL-03 has no build-up: exercises the empty state
+    options = list(at.selectbox(key="well").options)
+    ws = at.session_state["_ws"]
+    no_buildup = [w for w in options if not (len(ws.pta) and (ws.pta.well_name == w).any())]
+    wells = list(dict.fromkeys(options[:1] + no_buildup[:1] + options[-1:]))   # first, one without a build-up, last
+    for well in wells:
         at.selectbox(key="well").set_value(well).run()
         for page in PAGES:
             at.switch_page(page).run()
             _ok(at)
 
 
+@needs_data
 def test_manual_window_override():
     at = AppTest.from_file(str(APP), default_timeout=300)
     at.run()

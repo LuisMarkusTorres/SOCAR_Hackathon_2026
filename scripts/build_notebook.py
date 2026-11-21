@@ -32,6 +32,7 @@ import matplotlib.pyplot as plt
 from IPython.display import display
 
 from wellperf import config as C, pipeline as PL, vfm as V, static_plots as SP
+from wellperf.candidates import backtest_candidates, score_candidates
 from wellperf.interpret import interpret_text
 
 warnings.filterwarnings("ignore")
@@ -79,6 +80,15 @@ for ax, (ph, label, col) in zip(axes, SP.PHASES):
            title=f"{label} · error {mape:.1f}%")
     ax.set_aspect("equal")
 plt.tight_layout(); plt.show()"""),
+    md("""### Why this model and not another
+
+Every candidate is scored with the same forward-chaining backtest on the same tests. *Per-well time trend* ignores the
+sensors; *choke-flow ridge* is a Gilbert-type model (choke size, wellhead pressure, downhole minus wellhead pressure,
+gas-lift rate, temperature) pooled across wells with a per-well offset; *gradient-boosted trees* learn from every sensor
+feature plus well identity and time. With under ten tests per well, the model that already knows the shape of inflow needs
+the least data, and it extrapolates the reservoir-pressure decline instead of flattening as trees do."""),
+    code("""cands = ws.candidates if ws.candidates is not None else score_candidates(backtest_candidates(ws.tests_feat, ws.static))
+cands.round(2)"""),
     md("Prediction ranges (5th and 95th percentile of the out-of-sample relative errors) and per-well parameters:"),
     code("""display(pd.DataFrame(ws.model.rel_err_q).T.rename(columns={"q05": "low", "q95": "high"}))
 pd.DataFrame([vars(p) for p in ws.model.params.values()])[
@@ -103,6 +113,26 @@ q is the VFM oil rate of the last full day before the shut-in; $t_p = 24 N_p/q$.
     code("""for key, r in ws.pta_objs.items():
     fig = SP.event_figure(ws.minute, r); plt.show()
     print(interpret_text(r, ws.static), "\\n")"""),
+    md("""**Check against the reference PTA answers.** If the organisers' `pta_results.csv` is in `data/raw`, the build-ups
+that fall inside the training period are compared with it here (it is never used for fitting; events outside the training
+period cannot be compared because their pressure data is not in the training set)."""),
+    code("""ref_path = C.DATA_RAW / "pta_results.csv"
+if ref_path.exists():
+    ref = pd.read_csv(ref_path)
+    print("reference columns:", list(ref.columns))
+    tcol = next((c for c in ref.columns if "shut" in c.lower() or "date" in c.lower() or "time" in c.lower()), None)
+    if tcol is not None:
+        ref["_t"] = pd.to_datetime(ref[tcol], errors="coerce")
+        ours = PL.pta_deliverable(ws.pta).assign(_t=lambda x: pd.to_datetime(x.t_shut))
+        cmp = pd.merge_asof(ours.sort_values("_t"), ref.sort_values("_t"), on="_t", by="well_name",
+                            tolerance=pd.Timedelta(days=2), suffixes=("", "_ref"))
+        keep = [c for c in cmp.columns if c in ("well_name", "t_shut", "k_md", "skin", "m_psi_cycle", "dP_skin")
+                or c.endswith("_ref") or any(k in c.lower() for k in ("perm", "skin", "slope", "dp_skin"))]
+        display(cmp[keep])
+    else:
+        display(ref.head())
+else:
+    print("no reference file in data/raw: skipped")"""),
     md("""**Check of the PTA engine on synthetic build-ups with known answers** (analytical wellbore-storage + skin solution,
 Stehfest inversion, 0.3 psi gauge noise). Permeability is recovered within a few percent and skin within about 0.2:"""),
     code("""sys.path.insert(0, str(C.ROOT / "tests"))
@@ -116,13 +146,14 @@ pd.DataFrame(rows)"""),
     md("## 4. Export the submission files"),
     code("""paths = PL.export_all(ws)
 for k, v in paths.items():
-    print(f"{k:<11} {Path(v).relative_to(C.ROOT)}")"""),
+    print(f"{k:<11} {Path(v).relative_to(C.RESULTS.parent)}")"""),
     md("""## 5. Using the saved model on new data
 
 The application loads `models/vfm_model.pkl` and runs it on uploaded raw files without retraining. Here the last six
 weeks of sensor data stand in for new data. **These well tests were part of the training set**, so the score below only
 shows that the mechanics work; the honest accuracy estimate is the forward-chaining validation in section 2. With the
-evaluation data, the same call scores the model on genuinely unseen tests."""),
+evaluation data, the same call scores the model on genuinely unseen tests, and `recalibrate=True` would then refit the
+flow meter on the training tests plus the new ones (the app offers this as a checkbox)."""),
     code("""bundle = PL.load_bundle()
 base = PL.workspace_from_bundle(bundle)              # model + reference tables only, no sensor data
 raw = PL.D.load_hf_raw()

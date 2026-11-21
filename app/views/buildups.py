@@ -13,16 +13,17 @@ well = UI.well()
 def all_events_table():
     UI.section("All build-ups", "Automatic interpretation of every shut-in. This is what the PTA export contains.")
     show = ["well_name", "t_shut", "duration_hr", "q_stbd", "m_psi_cycle", "k_md", "skin", "dP_skin", "p_star_psia",
-            "flow_efficiency", "r2", "flags"]
-    t = ws.pta[show].copy()
+            "p_star_datum_psia", "flow_efficiency", "r2", "flags"]
+    t = ws.pta[[c for c in show if c in ws.pta]].copy()
     t["flags"] = t["flags"].replace("", None)
     UI.table(t, key_col="well_name",
              labels={"well_name": "Well", "t_shut": "Shut in", "duration_hr": "Hours", "q_stbd": "q, STB/d",
                      "m_psi_cycle": "m, psi/cycle", "k_md": "k, md", "skin": "Skin", "dP_skin": "Δp skin, psi",
-                     "p_star_psia": "p*, psia", "flow_efficiency": "Flow eff.", "r2": "R²", "flags": "Flags"},
+                     "p_star_psia": "p* gauge, psia", "p_star_datum_psia": "p* datum, psia",
+                     "flow_efficiency": "Flow eff.", "r2": "R²", "flags": "Flags"},
              formats={"duration_hr": "{:.1f}", "q_stbd": "{:,.0f}", "m_psi_cycle": "{:.2f}", "k_md": "{:.1f}",
-                      "skin": "{:.2f}", "dP_skin": "{:.1f}", "p_star_psia": "{:,.0f}", "flow_efficiency": "{:.2f}",
-                      "r2": "{:.4f}"})
+                      "skin": "{:.2f}", "dP_skin": "{:.1f}", "p_star_psia": "{:,.0f}", "p_star_datum_psia": "{:,.0f}",
+                      "flow_efficiency": "{:.2f}", "r2": "{:.4f}"})
 
 
 if ws.pta.empty:
@@ -145,11 +146,15 @@ with left:
     with st.container(border=True):
         st.markdown("**p\\* at datum depth**")
         dz = float(props.datum_tvd_ft - props.gauge_tvd_ft)
-        grad = st.number_input(f"Fluid gradient between gauge and datum ({dz:,.0f} ft below the gauge), psi/ft",
-                               min_value=0.20, max_value=0.55, value=None, step=0.01, placeholder="not set",
-                               help="Not in the dataset. Take it from a gradient survey or the oil density.")
+        g0 = float(props.get("fluid_gradient_psi_ft", np.nan))
+        grad = st.number_input(f"Live-oil gradient between gauge and datum ({dz:,.0f} ft below the gauge), psi/ft",
+                               min_value=0.20, max_value=0.55, value=round(g0, 3) if np.isfinite(g0) else None,
+                               step=0.005, format="%.3f", placeholder="not set",
+                               help="Pre-filled from the well tests' oil gravity and gas gravity with Rs and Bo from the "
+                                    "PVT table: ρ = (62.4·γo + 0.0136·Rs·γg)/Bo, gradient = ρ/144. Override it with a "
+                                    "gradient survey if you have one.")
         if grad:
-            st.markdown(f"p\\* = {r.p_star_psia:,.0f} + {grad:.2f} × {dz:,.0f} = **{r.p_star_psia + grad * dz:,.0f} psia** "
+            st.markdown(f"p\\* = {r.p_star_psia:,.0f} + {grad:.3f} × {dz:,.0f} = **{r.p_star_psia + grad * dz:,.0f} psia** "
                         f"at {props.datum_tvd_ft:,.0f} ft TVD")
         st.caption("Only absolute pressures shift. m, k, skin and Δp skin use pressure differences and do not change.")
 with right:

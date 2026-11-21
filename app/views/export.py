@@ -28,19 +28,25 @@ def card(title, what, n, downloads, preview=None):
                 UI.table(preview.head(50), max_height=360, key_col="well_name")
 
 
+UI.section("Everything at once")
+card("Complete submission package", "Both result files (Excel and CSV), the VFM and PTA reports, every PTA plot and "
+     "the trained model, in the folder layout of the repository.", "zip",
+     [("Download zip", lambda: PL.export_zip(ws), "well_performance_results.zip", "application/zip", True)])
+
 UI.section("Results")
 card("Daily production rates (VFM)", "One row per well per day: oil and water in STB/d, gas in Mscf/d "
      "(excluding injected lift gas).", f"{len(vfm):,} rows",
      [("Excel", lambda: PL.to_excel_bytes({"predictions": vfm}), "vfm_daily_predictions.xlsx", XLSX, True),
       ("CSV", lambda: vfm.to_csv(index=False), "vfm_daily_predictions.csv", "text/csv", False)], vfm)
 card("Build-up interpretation (PTA)", "One row per shut-in: Horner slope m, permeability k, skin and pressure drop "
-     "due to skin.", f"{len(pta):,} row" + ("" if len(pta) == 1 else "s"),
+     "due to skin. The PTA report adds p* at gauge and datum depth, R², the window and the flags.",
+     f"{len(pta):,} row" + ("" if len(pta) == 1 else "s"),
      [("Excel", lambda: PL.to_excel_bytes({"pta_results": pta}), "pta_results.xlsx", XLSX, True),
       ("CSV", lambda: pta.to_csv(index=False), "pta_results.csv", "text/csv", False)], pta)
 
 UI.section("Reports")
-card("VFM report", "Daily rates with 90% ranges, validation against well tests, per-test errors and per-well "
-     "model parameters" + (", plus the score on the uploaded well tests." if ws.test_eval is not None else "."),
+card("VFM report", "Daily rates with 90% ranges, validation against well tests, per-test errors, per-well "
+     "model parameters and the model comparison" + (", plus the score on the uploaded well tests." if ws.test_eval is not None else "."),
      "Excel, one sheet each", [("Excel", lambda: PL.to_excel_bytes(PL.vfm_report_sheets(ws)), "vfm_report.xlsx",
                                 XLSX, False)])
 card("PTA report", "Results, every input used (rate, cumulative oil, tp, rock and fluid properties, analysis window), "

@@ -16,40 +16,62 @@ Application requirements → app pages:
 
 | Requirement | In the app |
 |---|---|
-| Upload raw data | Sidebar → **Upload**: drop all CSV files at once; they are recognised by their columns |
+| Upload raw data | Sidebar → **Upload**: drop all files at once (CSV, Excel, Parquet or a zip of them); tables are recognised by their columns |
 | Visualise field measurements | **Data quality**: sensor plots with shut-ins shaded, corrections applied |
-| Predict production rates with the trained VFM | **Production (VFM)**: daily rates with 90% ranges, rate calculator, inflow curve |
+| Predict production rates with the trained VFM | **Production (VFM)**: daily rates with 90% ranges, rate calculator, inflow curve; optional recalibration on uploaded tests |
 | Generate well-test plots | **Build-up tests (PTA)**: log-log derivative, Horner, MDH, event history |
-| Estimate reservoir properties | **Build-up tests (PTA)**: m, k, skin, Δp skin, p*, flow efficiency |
+| Estimate reservoir properties | **Build-up tests (PTA)**: m, k, skin, Δp skin, p* at gauge and datum depth, flow efficiency |
 | Interpret reservoir behaviour | **Build-up tests (PTA)**: written interpretation; reservoir-pressure cross-check on Production |
-| Export results and reports, VFM and PTA | **Export**: result files (Excel/CSV), VFM report, PTA report, PTA plots (zip), model (.pkl) |
+| Export results and reports, VFM and PTA | **Export**: one zip with everything, or the result files (Excel/CSV), VFM report, PTA report, PTA plots (zip), model (.pkl) |
+| (method and evidence for the jury) | **Method & validation**: equations, validation vs baseline, parity plots, model comparison, synthetic PTA check |
 
 ## Running the evaluation demo
 
+Python 3.10 or newer.
+
 ```powershell
+# Windows
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\python -m pip install -e .
 .venv\Scripts\streamlit run app\streamlit_app.py
 ```
 
+```bash
+# Linux / macOS
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -e .
+.venv/bin/streamlit run app/streamlit_app.py
+```
+
 The app loads the trained model from `models/vfm_model.pkl`; it does not retrain. In the sidebar choose **Upload** and drop
-the test-data CSV files:
+the test-data files (CSV, Excel, Parquet, or a zip of them; column names are matched case-insensitively):
 
 - **required**: per-minute sensor data (same columns as `high_freq_data.csv`)
-- optional: choke events, well tests for the same period (the model is then scored against them on the Overview page and
-  in the VFM report), reservoir/PVT and completion tables (override the training values well by well)
+- optional: choke events, well tests for the same period (the model is then scored against them on the Overview and
+  Method pages and in the VFM report; a checkbox lets you recalibrate the flow meter on them afterwards), reservoir/PVT
+  and completion tables (override the training values well by well)
 
-Without the training data in `data/raw` the app opens directly in upload mode.
+Without the training data in `data/raw` the app opens directly in upload mode. Wells with no downhole pressure in the
+upload are predicted from their last known pressure and flagged; a shut-in that starts on the first day of the data uses
+the first full flowing day after it as its rate, and says so.
+
+Paths can be redirected with `WELLPERF_DATA_DIR` (raw files) and `WELLPERF_WORK_DIR` (cache, results, model), which is how
+the test suite runs on a second dataset.
 
 ## Reproducing everything from the training data
 
 ```powershell
 # put the dataset CSVs in data\raw\  (never committed)
-.venv\Scripts\python scripts\run_pipeline.py      # train, validate, write results\ and models\vfm_model.pkl
+.venv\Scripts\python scripts\run_pipeline.py      # train, validate, benchmark, write results\ and models\vfm_model.pkl
 .venv\Scripts\python scripts\build_notebook.py    # rebuild and execute the notebook
-.venv\Scripts\python -m pytest tests              # synthetic PTA check, upload path, app smoke tests
+.venv\Scripts\python -m pytest tests              # PTA checks, upload readers, upload path, app smoke tests
 ```
+
+Run these three again before the final upload: the pipeline now also stores the model-comparison table in the model
+file (the Method page and the VFM report read it from there) and the notebook has two new sections (model comparison,
+check against the reference PTA file when it is present in `data/raw`).
 
 ## Workflow
 
@@ -77,21 +99,31 @@ Without the training data in `data/raw` the app opens directly in upload mode.
 | **VFM, forward-chaining** (predict each test from earlier ones) | **3.5%** | **4.8%** | **5.9%** |
 | **VFM, leave-one-test-out** | **2.5%** | **3.6%** | **5.6%** |
 
+Candidates scored with the same forward-chaining backtest (`wellperf/candidates.py`; the table is produced by
+`scripts/run_pipeline.py` and shown on the Method page): carrying the last test forward, a per-well time trend, a
+pooled choke-flow (Gilbert-type) ridge regression, gradient-boosted trees on all sensor features, and the physics IPR
+model. In the previous run the physics model won (oil 3.5% against 5.1% for gradient-boosted trees and 6.0% for the
+baseline); the notebook has the current numbers.
+
 PTA engine on analytical build-ups with known answers: k within 2.3%, skin within 0.15 (`tests/test_pta_synthetic.py`).
+p* is also reported at datum depth, using a live-oil gradient estimated from the tests' oil and gas gravity with Rs and Bo
+from the PVT table (about 0.34 psi/ft); m, k, skin and Δp skin are differences and do not depend on it.
 
 ## Repository layout
 
 ```
 app/streamlit_app.py     UI entry point (sidebar, upload, navigation)
 app/views/               one file per page
-src/wellperf/            config · data (load+QC) · features · vfm · pta · interpret · plots (interactive)
-                         static_plots (PNG) · pipeline · ui (page helpers) · synthetic (test fixtures)
+src/wellperf/            config · data (load+QC) · features · vfm · candidates (benchmarks) · pta · interpret
+                         plots (interactive) · static_plots (PNG) · pipeline · ui (page helpers) · synthetic (fixtures)
 scripts/                 run_pipeline.py (train + export) · build_notebook.py
 notebooks/               executed workflow notebook
 results/                 submission result files, reports, pta_plots/
 models/                  vfm_model.pkl
-tests/                   PTA verification, upload path, app smoke tests
+tests/                   PTA verification and edge cases, upload readers, upload path, app smoke tests
 docs/GUIDE.md            beginner guide to the problem, the theory and the method
 ```
 
-`data/` and `*.zip` are git-ignored: the raw dataset is confidential.
+`data/` and `*.zip` are git-ignored: the raw dataset is confidential. Note that `models/vfm_model.pkl` and
+`results/vfm_report.xlsx` contain the training well tests (the model needs them to score new tests and to recalibrate),
+so keep the repository private to the team and the organisers.

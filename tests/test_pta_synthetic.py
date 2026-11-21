@@ -1,5 +1,4 @@
 """The automated PTA must recover known k and skin from analytical (synthetic) build-ups with storage and noise."""
-import numpy as np
 import pandas as pd
 
 from wellperf import pta as P
@@ -15,7 +14,8 @@ CASES = [  # k [md], skin, C [bbl/psi]
 ]
 
 
-def run_case(k, s, C, q=1000.0, tp_hr=5000.0, shut_hr=72.0, noise=0.3):
+def run_case(k, s, C, q=1000.0, tp_hr=5000.0, shut_hr=72.0, noise=0.3, q_interp=None):
+    """Generate a build-up produced at rate q; interpret it with q_interp (defaults to q)."""
     bu, pwf = buildup_minutes(k, s, C, q, tp_hr, shut_hr, PROPS, noise_psi=noise)
     t0 = pd.Timestamp("2025-01-10 08:00")
     pre = pd.DataFrame({"timestamp": pd.date_range(t0 - pd.Timedelta(minutes=30), periods=30, freq="min"),
@@ -27,7 +27,7 @@ def run_case(k, s, C, q=1000.0, tp_hr=5000.0, shut_hr=72.0, noise=0.3):
     props = pd.Series(dict(net_pay_thickness_ft=PROPS["h"], porosity_frac=PROPS["phi"], oil_viscosity_cp=PROPS["mu"],
                            oil_fvf_rb_stb=PROPS["B"], total_compressibility_1_psi=PROPS["ct"],
                            wellbore_radius_ft=PROPS["rw"], estimated_drainage_area_acres=1e6))
-    return P.interpret_buildup(minute, ev, q, q * tp_hr / 24.0, props)
+    return P.interpret_buildup(minute, ev, q if q_interp is None else q_interp, q * tp_hr / 24.0, props)
 
 
 def test_recovers_known_parameters():

@@ -93,7 +93,7 @@ def history(minute: pd.DataFrame, r, axes=None, pad_hr: float = 12):
     axes[1].set(ylabel="Gas lift (Mscf/d)")
     for ax in axes:
         ax.axvspan(r.t_shut, t1, color=MUTED, alpha=0.15, lw=0)
-    loc = mdates.AutoDateLocator(maxticks=6)
+    loc = mdates.AutoDateLocator(minticks=3, maxticks=8)
     axes[1].xaxis.set_major_locator(loc)
     axes[1].xaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
     return axes

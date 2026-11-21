@@ -1,11 +1,18 @@
-"""Paths, column contracts and QC thresholds. Every hard-coded assumption lives here."""
+"""Paths, column contracts and QC thresholds. Every hard-coded assumption lives here.
+
+Paths can be redirected with environment variables (useful for a second dataset or for tests):
+    WELLPERF_DATA_DIR     folder with the raw CSV files        (default data/raw)
+    WELLPERF_WORK_DIR     folder for the cache, results, model (default: the repository)
+"""
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA_RAW = ROOT / "data" / "raw"
-DATA_INTERIM = ROOT / "data" / "interim"
-RESULTS = ROOT / "results"                     # submission: result files + PTA plots
-MODELS = ROOT / "models"                       # submission: trained model (.pkl)
+_WORK = Path(os.environ.get("WELLPERF_WORK_DIR", ROOT))
+DATA_RAW = Path(os.environ.get("WELLPERF_DATA_DIR", ROOT / "data" / "raw"))
+DATA_INTERIM = _WORK / "data" / "interim"
+RESULTS = _WORK / "results"                    # submission: result files + PTA plots
+MODELS = _WORK / "models"                      # submission: trained model (.pkl)
 MODEL_FILE = MODELS / "vfm_model.pkl"
 
 # ---- file contracts -------------------------------------------------------

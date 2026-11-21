@@ -150,13 +150,23 @@ class VFMModel:
             out[i] = [oil, liq * wc / 100, oil * p.gor / 1000, liq, wc, p.reservoir_pressure(t_days[i])]
         return pd.DataFrame(out, columns=PHASES + ["liquid_rate_stbd", "water_cut_pct", "p_res_implied_psia"])
 
-    def predict_daily(self, daily: pd.DataFrame) -> pd.DataFrame:
-        """daily: output of features.daily_features. Returns daily volumes (rate x on-stream fraction) + bands."""
+    def predict_daily(self, daily: pd.DataFrame, history: pd.DataFrame | None = None) -> pd.DataFrame:
+        """daily: output of features.daily_features. Returns daily volumes (rate x on-stream fraction) + bands.
+
+        history: earlier predict_daily output (well_name, date, pwf_psia). When the gauge is missing on every day
+        of a well in `daily`, the last known Pwf from the history is used so the well still gets a rate (flagged).
+        """
         d = daily.sort_values(["well_name", "date"]).reset_index(drop=True)
         # whole-day sensor outages: bridge Pwf linearly in time from the neighbouring days (flagged for review)
         pwf_missing = d["dh_pressure_psia"].isna()
         pwf_used = d.groupby("well_name")["dh_pressure_psia"].transform(
             lambda s: s.interpolate(limit_direction="both"))
+        from_history = pd.Series(False, index=d.index)
+        if history is not None and len(history) and pwf_used.isna().any():
+            last = (history.dropna(subset=["pwf_psia"]).sort_values("date").groupby("well_name")["pwf_psia"].last())
+            fill = d["well_name"].map(last)
+            from_history = pwf_used.isna() & fill.notna()
+            pwf_used = pwf_used.where(~from_history, fill)
         r = self.predict_rates(d["well_name"], days_since_ref(d["date"] + pd.Timedelta(hours=12)), pwf_used)
         frac = d["on_stream_frac"].clip(0, 1).to_numpy()
         out = pd.DataFrame({"date": d["date"].dt.date, "well_name": d["well_name"]})
@@ -171,9 +181,10 @@ class VFMModel:
         out["p_res_implied_psia"] = r["p_res_implied_psia"].to_numpy()
         out["pwf_psia"] = pwf_used.to_numpy()
         out["on_stream_frac"] = frac
-        out["flag"] = np.where(pwf_missing & (frac > 0), "sensor outage: Pwf interpolated from adjacent days",
+        out["flag"] = np.where(from_history & (frac > 0), "no downhole pressure in this data: last known Pwf used",
+                      np.where(pwf_missing & (frac > 0), "sensor outage: Pwf interpolated from adjacent days",
                                np.where(frac <= 0, "shut in all day",
-                                        np.where(frac < 1, "partial day (shut-in)", "")))
+                                        np.where(frac < 1, "partial day (shut-in)", ""))))
         out.loc[out["well_name"].map(lambda w: w not in self.params), "flag"] = "well not calibrated (no tests)"
         return out
 

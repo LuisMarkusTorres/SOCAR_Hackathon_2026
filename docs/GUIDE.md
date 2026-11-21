@@ -69,7 +69,7 @@ Half the points are VFM, so that is where we put the most rigour.
 3. PTA plots for every shut-in, accessible in the UI.
 4. A working UI that produces all of the above.
 
-All four exist (`artifacts/` folder and the Streamlit app).
+All four exist (`results/` and `models/` folders and the Streamlit app).
 
 ### The workflow at a glance
 
@@ -233,7 +233,7 @@ total gas = formation gas + lift gas, water cut = water ÷ liquid). When one dis
 | Sign flips | lift gas `-717.5` (GL-06), water `-572.2` | Absolute value (5 cases) |
 | **Wrong units** | GL-06 gas reported as 5,493 when oil × GOR says 194 | 194 Mscf/d ÷ 28.3 m³/Mscf ≈ 5,494. **All 9 GL-06 tests were in m³/d**, so they were converted. |
 
-Every correction is logged and shown in the app (*Data & quality* tab), so nothing is changed silently.
+Every correction is logged and shown in the app (*Data quality* page), so nothing is changed silently.
 
 ### An important detail: which gas do we predict?
 
@@ -297,7 +297,8 @@ We tested several candidates honestly (Section 5.5 explains the testing):
 |---|---|---|
 | Carry the last test forward (what engineers do today: **baseline**) | 6.0% | Baseline to beat |
 | Per-well straight-line time trend | 6.0% | Misses pressure-driven swings |
-| **LightGBM** (gradient-boosted trees, 10 sensor features) | 5.1% | Better than baseline, worse than physics |
+| **Gradient-boosted trees** (every sensor feature plus well and time) | 5.1% | Better than baseline, worse than physics |
+| **Choke-flow ridge** (Gilbert-type terms, pooled across wells; the model from the pre-data report) | see notebook | Needs the choke and wellhead data to carry the signal that the downhole gauge carries directly |
 | **Physics IPR model (ours)** | **3.5%** | **Best** |
 
 Why physics wins here:
@@ -458,11 +459,13 @@ psi per foot in oil and water. "3,500 psi" means nothing until you say *where*.
 **Converting:** p<sub>datum</sub> = p<sub>gauge</sub> + (fluid gradient) × (datum − gauge). For GL-01 the datum is 280 ft below
 the gauge. With an oil gradient of roughly 0.30–0.35 psi/ft, that adds about 85–100 psi.
 
-**Why we didn't do it automatically:** the dataset gives both depths but **not the fluid gradient** (no oil density or API
-gravity), and inventing it would break the "no fabricated physics" rule. **Why it doesn't matter for the challenge outputs:**
-the correction adds the *same* number of psi to every pressure in a build-up. The Horner slope m, k, skin and
-Δp<sub>skin</sub> all use pressure **differences**, so the constant cancels. Only absolute pressures (p\*, p<sub>wf</sub>)
-change. In the app, the PTA tab has a datum-correction box: if you enter a gradient, it shows p\* at datum next to p\* at gauge.
+**How we estimate the gradient:** the well tests report the oil gravity (API) and the gas gravity, and the PVT table has the
+solution GOR and B<sub>o</sub>, so the live-oil density follows the standard relation
+ρ = (62.4·γ<sub>o</sub> + 0.0136·R<sub>s</sub>·γ<sub>g</sub>)/B<sub>o</sub> and the gradient is ρ/144 ≈ 0.34 psi/ft
+(`pipeline.datum_gradient`). **Why it doesn't matter for the challenge outputs:** the correction adds the *same* number of
+psi to every pressure in a build-up. The Horner slope m, k, skin and Δp<sub>skin</sub> all use pressure **differences**, so
+the constant cancels. Only absolute pressures (p\*, p<sub>wf</sub>) change. The PTA report lists p\* at gauge and at datum
+depth; in the app the datum box is pre-filled with the estimated gradient and can be overridden with a gradient survey.
 
 **Skin: the clogged doorway.** Drilling mud, fine particles or scale can damage the rock in the first few feet around the well,
 creating an extra pressure loss right at the "door". Acid jobs or fractures can do the opposite. This effect is the **skin factor**
@@ -585,12 +588,13 @@ Pages are in the bar along the top. The **active well** is chosen in the sidebar
 
 | Page | What you see |
 |---|---|
-| **Sidebar** | Data source: the training period, or **Upload**. Drop all raw CSVs at once; each is recognised by its columns. The sensor file is required; choke events, well tests (the model is then scored on them), PVT and completion tables are optional. The app runs the saved model (`models/vfm_model.pkl`) and never retrains. Also the active well and quick facts for it. |
+| **Sidebar** | Data source: the training period, or **Upload**. Drop all raw files at once (CSV, Excel, Parquet or a zip); each table is recognised by its columns. The sensor file is required; choke events, well tests (the model is then scored on them), PVT and completion tables are optional. The app runs the saved model (`models/vfm_model.pkl`) and never retrains. Also the active well and quick facts for it. |
 | **Overview** | Field oil, water and gas with trend sparklines, flow-meter accuracy vs baseline, and a well table. **Clicking a well name** opens a pop-up with that well's latest rates and full-size production chart, and makes it the active well. |
 | **Data quality** | Sensor plots with shut-ins shaded, minutes corrected per issue type, every well-test correction, the detected shut-in list |
 | **Production (VFM)** | Daily oil, water and gas with 90% bands, shut-ins shaded, and the **production well tests** (white circles) overlaid. **Rate calculator**: enter a date, bottom-hole pressure and hours on stream to get expected rates with ranges, next to the inflow (IPR) curve. Flow-meter reservoir pressure vs build-up p\*, with the gap stated per build-up. |
 | **Build-up tests (PTA)** | Pick a shut-in. Then the four required numbers (m, k, skin, Δp<sub>skin</sub>), followed straight away by the **diagnostic plots**: log-log, Horner, semilog (MDH) and the raw event. Each plot has a short "how to read it" note. Below that: an optional **radial-flow window override** with live recalculation, a plain-language interpretation, a **gauge-to-datum p\* converter**, the inputs used, and a table of all build-ups. |
-| **Export** | The two result files (Excel or CSV) with previews, a VFM report (rates, validation, per-well parameters), a PTA report (results, inputs, written interpretation), all PTA plots as a zip of PNGs, and the trained model (.pkl) |
+| **Method & validation** | The equations, the validation table (forward-chaining and leave-one-test-out against the baseline), parity plots, the model comparison with the alternatives, the synthetic PTA check and the list of limits. The page to show the jury. |
+| **Export** | One zip with everything, or the two result files (Excel or CSV) with previews, a VFM report (rates, validation, per-well parameters), a PTA report (results, inputs, written interpretation), all PTA plots as a zip of PNGs, and the trained model (.pkl) |
 
 Two kinds of "well test" appear in the app. **Production tests** (Part 1) measure the rates; they are the white circles on the
 Production charts. **Build-up tests** (Part 2) are the shut-ins; their diagnostic plots are on the Build-up tests page.
@@ -613,19 +617,19 @@ how much they could matter for scoring.
 | **Is accuracy scored on unseen data (e.g. Oct–Dec 2025)?** The reference file mentions Oct–Dec shut-ins we have no data for. | Our model extrapolates reservoir-pressure and water-cut trends. Fine for 1–2 months, riskier beyond. | Built an upload path so a new file can be processed immediately |
 | Is `gas_rate_mscfd` formation gas only? | Lift gas is about 1–6× the formation gas depending on the well. Getting it wrong would wreck gas accuracy. | Formation gas only, which is how the test file defines it |
 | Which Horner producing time t<sub>p</sub> does the jury expect? | m, k and skin barely change (≤ 3% / ≤ 0.16 even with an extreme 30-day t<sub>p</sub>). **p\*** shifts by m·log₁₀(t<sub>p1</sub>/t<sub>p2</sub>). See "Two clocks" in §6.2. | t<sub>p</sub> = 24·N<sub>p</sub>/q (Horner's pseudo-producing time) |
-| Should pressures be corrected from gauge depth to datum depth? | Adds a constant to all absolute pressures (p\*, p<sub>wf</sub>). k, skin, m and Δp<sub>skin</sub> are **unaffected** (they use pressure differences). The fluid gradient needed for the correction is not in the data. See "Two depths" in §6.2. | Reported at gauge depth. The app converts to datum if you enter a gradient. |
+| Should pressures be corrected from gauge depth to datum depth? | Adds a constant to all absolute pressures (p\*, p<sub>wf</sub>). k, skin, m and Δp<sub>skin</sub> are **unaffected** (they use pressure differences). See "Two depths" in §6.2. | Both are reported: p\* at gauge depth and at datum depth with the live-oil gradient from the tests' oil gravity. |
 
 ### 8.2 Things we chose not to build (yet), and why
 
 | Not done | Why not | Value if added |
 |---|---|---|
 | **A backup model using only surface sensors** (for when the downhole gauge fails) | Only **one** well-day in the data has a gauge outage (GL-06, 24 Jun). It is bridged by interpolation and flagged. | Medium if hidden data has more gauge failures |
-| **Choke-equation model** as a second, independent rate estimate | With real well tests it isn't needed as an anchor | Low–medium: redundancy and fault detection story |
+| **Choke-equation model** as a second, independent rate estimate | Built as a benchmark (choke-flow ridge); not used as a second estimate in the app | Low–medium: redundancy and fault detection story |
 | **Analytical model matching** on the real build-ups (fit the full curve, not just the straight line) | Implemented only for verification (synthetic tests) | Medium: a stronger PTA story, gives wellbore storage C |
 | **Boundary analysis and true average reservoir pressure** (e.g. MBH method) | Not required. p\* is reported instead. | Low for scoring, nice for engineering |
 | **Full uncertainty propagation in PTA** (Monte Carlo over rate and PVT) | Only the rate→k band is shown | Low–medium |
 | **Variable-rate superposition** for build-ups | The brief specifies a single daily rate (Horner) | Low |
-| **LightGBM in the final model** | It lost to the physics model (5.1% vs 3.5%). Kept only as a documented benchmark. | — |
+| **Gradient-boosted trees or the choke-flow ridge as the final model** | They lose to the physics model (benchmarks in `wellperf/candidates.py`, table on the Method page and in the notebook). | — |
 
 ### 8.3 Known limitations of what we built
 
@@ -636,7 +640,6 @@ how much they could matter for scoring.
 - **PTA assumes** single-phase oil, constant PVT and a homogeneous reservoir: all as instructed and physically reasonable here.
 - **Charts have only been tested automatically** (the app smoke test passes). A human should click through every tab
   before the demo.
-- **Not committed to git yet.**
 
 ### 8.4 If we had more time: priority order
 
@@ -705,7 +708,7 @@ how much they could matter for scoring.
 | `src/wellperf/pipeline.py` | Runs everything end-to-end, writes the Excel deliverables |
 | `src/wellperf/plots.py` | All charts |
 | `app/streamlit_app.py` | The user interface |
-| `scripts/run_pipeline.py` | Batch run that writes the deliverables to `artifacts/` |
+| `scripts/run_pipeline.py` | Batch run that writes the deliverables to `results/` and the model to `models/` |
 | `tests/` | PTA verification and app smoke test (`python -m pytest tests`) |
 
 ### Further reading
