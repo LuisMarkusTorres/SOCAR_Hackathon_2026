@@ -118,19 +118,20 @@ that fall inside the training period are compared with it here (it is never used
 period cannot be compared because their pressure data is not in the training set)."""),
     code("""ref_path = C.DATA_RAW / "pta_results.csv"
 if ref_path.exists():
-    ref = pd.read_csv(ref_path)
-    print("reference columns:", list(ref.columns))
-    tcol = next((c for c in ref.columns if "shut" in c.lower() or "date" in c.lower() or "time" in c.lower()), None)
-    if tcol is not None:
-        ref["_t"] = pd.to_datetime(ref[tcol], errors="coerce")
-        ours = PL.pta_deliverable(ws.pta).assign(_t=lambda x: pd.to_datetime(x.t_shut))
-        cmp = pd.merge_asof(ours.sort_values("_t"), ref.sort_values("_t"), on="_t", by="well_name",
-                            tolerance=pd.Timedelta(days=2), suffixes=("", "_ref"))
-        keep = [c for c in cmp.columns if c in ("well_name", "t_shut", "k_md", "skin", "m_psi_cycle", "dP_skin")
-                or c.endswith("_ref") or any(k in c.lower() for k in ("perm", "skin", "slope", "dp_skin"))]
-        display(cmp[keep])
-    else:
-        display(ref.head())
+    ref = pd.read_csv(ref_path, parse_dates=["t_shut"])
+    ours = PL.pta_deliverable(ws.pta).assign(t_shut=lambda x: pd.to_datetime(x.t_shut))
+    cmp = pd.merge_asof(ours.sort_values("t_shut"), ref.sort_values("t_shut"), on="t_shut", by="well_name",
+                        tolerance=pd.Timedelta(hours=2), suffixes=("", "_ref"), direction="nearest")
+    cmp = cmp.dropna(subset=["k_md_ref"])
+    cmp["m err %"] = 100 * (cmp.m_psi_cycle / cmp.m_psi_cycle_ref - 1)
+    cmp["k err %"] = 100 * (cmp.k_md / cmp.k_md_ref - 1)
+    cmp["skin err"] = cmp.skin - cmp.skin_ref
+    cols = ["well_name", "t_shut", "duration_hr", "m_psi_cycle", "m_psi_cycle_ref", "m err %", "k_md", "k_md_ref", "k err %",
+            "skin", "skin_ref", "skin err", "dP_skin", "dP_skin_ref"]
+    display(cmp[cols].round(2))
+    print(f"{len(cmp)} events compared · mean |m err| {cmp['m err %'].abs().mean():.1f}% · "
+          f"mean |k err| {cmp['k err %'].abs().mean():.1f}% · mean |skin err| {cmp['skin err'].abs().mean():.2f}")
+    print(f"{len(ref) - len(cmp)} reference events fall outside the training period and cannot be compared here")
 else:
     print("no reference file in data/raw: skipped")"""),
     md("""**Check of the PTA engine on synthetic build-ups with known answers** (analytical wellbore-storage + skin solution,

@@ -115,17 +115,21 @@ def storage_end_index(g: np.ndarray, slope: np.ndarray) -> int | None:
     When no rise is visible (the data starts after storage) the first flat point is used.
     """
     n = len(g)
-    gs = pd.Series(g).rolling(5, center=True, min_periods=1).median().to_numpy()   # noise-robust level
     early = slice(0, max(3, n // 2))
+    if C.PTA_LEGACY_WINDOW:                     # original picker, bit for bit: raw derivative, raw slope
+        for i in range(int(np.argmax(g[early])), n):
+            if slope[i] < 0.25:
+                return i
+        return 0
+    gs = pd.Series(g).rolling(5, center=True, min_periods=1).median().to_numpy()   # noise-robust level
     peak = int(np.argmax(gs[early]))
     # a storage rise is a sustained unit-slope-like climb (not one noisy point) before the peak
     rising = peak >= 2 and np.sum(slope[:peak] > 0.5) >= 2 and gs[peak] > 1.5 * gs[0]
-    if C.PTA_LEGACY_WINDOW or not rising:
-        start = peak if C.PTA_LEGACY_WINDOW else 0
-        for i in range(start, n):
-            if (slope[i] < 0.25) if C.PTA_LEGACY_WINDOW else (abs(slope[i]) < 0.25):
+    if not rising:
+        for i in range(n):
+            if abs(slope[i]) < 0.25:
                 return i
-        return 0 if C.PTA_LEGACY_WINDOW else None
+        return None
     # a storage hump is visible: radial flow can only begin after the derivative has come down from it
     g_peak = gs[peak]
     for i in range(peak + 1, n):
@@ -155,7 +159,7 @@ def find_iarf_window(dt: np.ndarray, der: np.ndarray, min_span_cycles: float = 0
     lt, lg = np.log10(t), np.log10(g)
     slope = np.gradient(lg, lt)
     sm = pd.Series(slope).rolling(5, center=True, min_periods=1).mean().to_numpy()   # ~0.2 log cycle
-    wbs_end_idx = storage_end_index(g, sm)
+    wbs_end_idx = storage_end_index(g, slope if C.PTA_LEGACY_WINDOW else sm)
     if wbs_end_idx is None:
         return (np.nan, np.nan, np.inf)
     best = (np.nan, np.nan, np.inf)
@@ -165,11 +169,17 @@ def find_iarf_window(dt: np.ndarray, der: np.ndarray, min_span_cycles: float = 0
             span = lt[j] - lt[i]
             if span < min_span_cycles:
                 continue
-            # the storage hump always lies above the radial-flow level: a candidate that sits clearly above the
-            # derivative seen later in the record is the top of the hump, not radial flow
+            # The top of a storage hump can look flat. It is entered on a RISING derivative and left on a falling
+            # one; a true plateau is entered after the descent. A late-time decline after a true plateau (boundary,
+            # pressure support) must not reject it, so both signs are required.
             if not C.PTA_LEGACY_WINDOW:
-                later = gs[(lt > lt[j]) & (lt <= lt[j] + 1.0)]
-                if len(later) >= 3 and np.median(gs[i: j + 1]) > 1.5 * later.min():
+                # a hump top is reached by a rise (or sits at the very start of the record); a true plateau is
+                # reached by a descent. A steep fall within half a cycle after the window completes the hump.
+                before = sm[max(0, i - 6): i]
+                descended_into = len(before) >= 3 and np.nanmin(before) < -0.3
+                later = gs[(lt > lt[j]) & (lt <= lt[j] + 0.5)]
+                falls_after = len(later) >= 3 and np.median(gs[i: j + 1]) > 1.5 * later.min()
+                if falls_after and not descended_into:
                     continue
             seg = slope[i: j + 1]
             score = np.mean(np.abs(seg)) + 0.02 / span   # favour flat, then longer windows
@@ -317,9 +327,16 @@ def interpret_buildup(minute: pd.DataFrame, event: pd.Series, q_stbd: float, np_
     # Only when the data offer no plateau at all does the match supply the estimate (and says so).
     source = "Horner"
     if window is None and not np.isfinite(t0) and credible and half_cycle_left(match["t_iarf"]):
-        t0, t1, src = match["t_iarf"], dt.max(), "auto (start from model match)"
+        # the data picker found nothing; take the model's radial-flow start, at most one log cycle, and only
+        # if the data derivative is actually flat there
+        t_a, t_b = match["t_iarf"], min(dt.max(), match["t_iarf"] * 10.0)
+        okd = np.isfinite(der) & (der > 0) & (dt >= t_a) & (dt <= t_b)
+        if okd.sum() >= 4:
+            sl = np.gradient(np.log10(der[okd]), np.log10(dt[okd]))
+            if np.mean(np.abs(sl)) < 0.2:
+                t0, t1, src = t_a, t_b, "auto (start from model match)"
     if not np.isfinite(t0):
-        t0, t1, src = dt.max() / 10 ** 0.5, dt.max(), "none (storage-dominated)"
+        t0, t1, src = dt.max() / (10 if C.PTA_LEGACY_WINDOW else 10 ** 0.5), dt.max(), "none (storage-dominated)"
         if credible and C.PTA_MODEL_FALLBACK:
             source = "model match"
             flags.append(f"storage-dominated shut-in: no radial-flow plateau in the data; k and skin come from the "
