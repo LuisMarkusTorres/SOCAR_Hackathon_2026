@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VFMonitor pitch guide</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm; }
+  :root { --ink: #16181c; --mute: #5c636d; --line: #d9dde3; --soft: #f3f5f8; --oil: #c9731f; --blue: #2f66c4; --red: #c23b3b; --green: #2b8a4e; }
+  * { box-sizing: border-box; }
+  body { font-family: "Geist", "Inter", "Segoe UI", system-ui, sans-serif; color: var(--ink); font-size: 10.5pt; line-height: 1.45; margin: 0; }
+  h1 { font-size: 26pt; margin: 0 0 4pt 0; letter-spacing: -0.02em; }
+  h2 { font-size: 15pt; margin: 22pt 0 8pt 0; padding-bottom: 4pt; border-bottom: 1.5px solid var(--ink); letter-spacing: -0.01em; }
+  h3 { font-size: 11.5pt; margin: 14pt 0 5pt 0; }
+  p { margin: 0 0 7pt 0; }
+  ul, ol { margin: 0 0 8pt 0; padding-left: 18pt; }
+  li { margin-bottom: 3pt; }
+  .pb { page-break-before: always; }
+  h2, h3 { page-break-after: avoid; }
+  .qa, .box { page-break-inside: avoid; }
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; }
+  .cover .kicker { font-size: 10pt; letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); margin-bottom: 10pt; }
+  .cover .sub { font-size: 13pt; color: var(--mute); max-width: 120mm; }
+  .cover .meta { margin-top: 36pt; font-size: 9.5pt; color: var(--mute); }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 10pt 0; font-size: 9.5pt; page-break-inside: auto; }
+  th, td { text-align: left; vertical-align: top; padding: 4.5pt 6pt; border-bottom: 1px solid var(--line); }
+  tr { page-break-inside: avoid; } thead { display: table-header-group; }
+  th { font-weight: 600; background: var(--soft); font-size: 9pt; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .box { border: 1px solid var(--line); border-left: 3px solid var(--blue); background: var(--soft); padding: 8pt 11pt; margin: 8pt 0 10pt 0; page-break-inside: avoid; }
+  .box.say { border-left-color: var(--oil); }
+  .box.warn { border-left-color: var(--red); }
+  .box.good { border-left-color: var(--green); }
+  .box .t { font-size: 8.5pt; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); margin-bottom: 3pt; }
+  .say p { font-style: italic; }
+  .qa { page-break-inside: avoid; margin-bottom: 9pt; }
+  .qa .q { font-weight: 600; margin-bottom: 2pt; }
+  .qa p { margin: 0; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14pt; }
+  .small { font-size: 9pt; color: var(--mute); }
+  .time { display: inline-block; min-width: 40pt; font-variant-numeric: tabular-nums; color: var(--mute); font-size: 9pt; }
+  code { font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-size: 9pt; background: var(--soft); padding: 1pt 4pt; border-radius: 3pt; }
+  pre { font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-size: 9pt; background: var(--soft); padding: 8pt 10pt; border-radius: 4pt; margin: 4pt 0 10pt 0; }
+  .toc li { margin-bottom: 2pt; }
+  .check li { list-style: none; position: relative; padding-left: 16pt; }
+  .check li::before { content: ""; position: absolute; left: 0; top: 3pt; width: 9pt; height: 9pt; border: 1.2px solid var(--ink); border-radius: 2pt; }
+  .tag { display: inline-block; font-size: 8pt; padding: 1pt 5pt; border-radius: 3pt; background: var(--soft); border: 1px solid var(--line); color: var(--mute); margin-left: 4pt; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">SOCAR Hackathon 2026 · Intelligent Well Performance Analysis</div>
+  <h1>VFMonitor pitch guide</h1>
+  <p class="sub">What to say, what to show, what the judges will ask, and the numbers behind every claim. For the team presenting; not for distribution.</p>
+  <div class="meta">
+    Companion to the <i>VFMonitor app guide</i> (full method, page-by-page description, exports).<br>
+    All numbers here come from the training data (10 wells, 1 Jan – 30 Sep 2025, 85 well tests, 6 shut-ins) and the automated tests in the repository.
+  </div>
+</div>
+
+<h2>Contents</h2>
+<ol class="toc">
+  <li>The pitch in one breath</li>
+  <li>The story arc, timed (7 minutes, with a 5-minute cut)</li>
+  <li>Live demo script, click by click</li>
+  <li>Highlights to land, and why they matter to this jury</li>
+  <li>Numbers to memorise</li>
+  <li>Questions the judges may ask, with answers</li>
+  <li>Weak points and how to handle them honestly</li>
+  <li>Do and don't while presenting</li>
+  <li>Pre-pitch checklist and fallback plan</li>
+  <li>Thirty-second explanations of the hard words</li>
+</ol>
+
+<h2 class="pb">1. The pitch in one breath</h2>
+<div class="box say">
+  <div class="t">Thirty seconds</div>
+  <p>"A well is measured properly about once a month, during a separator test. The other 29 days nobody knows what it produces. VFMonitor turns the per-minute sensor stream every well already has into daily oil, water and gas rates with a stated error range, and every time a well is shut in it reads permeability and skin from the pressure build-up, automatically. One upload, one workflow, from raw files to exportable results. The flow meter halves the error of today's practice on a blind test, and the build-up analysis matches the organisers' reference within a few percent without ever being fitted to it."</p>
+</div>
+<p><b>The one message.</b> Physics-structured, honestly validated, engineer-controllable. If the jury remembers three words, those are the ones.</p>
+<p><b>What makes it different from a notebook.</b> It is a working application that the jury can run on their own files: data quality report, predictions, well-test plots, reservoir properties, interpretation and exports in one place. Every number on screen shows its inputs, formula, window and flags.</p>
+
+<h2>2. The story arc, timed</h2>
+<p>Seven minutes total, one presenter per block or one presenter throughout. The 5-minute version drops the parts marked <span class="tag">cut</span>.</p>
+
+<h3><span class="time">0:00</span> Problem <span class="small">(45 s)</span></h3>
+<ul>
+  <li>Rates are known only on test days. Between tests, allocation, surveillance and reservoir management run on a number that is up to a month old.</li>
+  <li>Subsurface properties (permeability, skin) are only revealed when a well is shut in, and interpreting a build-up is manual, tool-fragmented work.</li>
+  <li>The engineering question: can one workflow give daily rates with trust, and read every shut-in automatically?</li>
+</ul>
+<div class="box say"><div class="t">Say</div><p>"Today the best number for yesterday's oil rate is last month's well test. We wanted something better than that, and we wanted to be able to prove it is better."</p></div>
+
+<h3><span class="time">0:45</span> Data <span class="small">(60 s)</span></h3>
+<ul>
+  <li>Ten gas-lifted wells, nine months, 3.9 million per-minute rows, 85 well tests, choke log, PVT and completion tables.</li>
+  <li>Raw data had planted and natural faults: 2,513 duplicate timestamps, about 1,300 missing-value codes (−999) per column, 32–59 spikes per well, 5 sign flips and 9 gas values in the wrong unit (sm³/d) in the well tests.</li>
+  <li>Seven cleaning rules with stated thresholds. Every correction is logged and visible on the Data page; the raw files are never modified. Well-test errors were repaired from the redundant columns (liquid = oil + water, and so on), not guessed.</li>
+  <li>Shut-ins are detected from the gas-lift rate (below 5 Mscf/d) and the choke (0 %); six were found, from 5.7 h to 72 h.</li>
+</ul>
+<div class="box say"><div class="t">Say</div><p>"Before any model, we made the data honest. Every correction has a rule, a threshold and a log line, so an engineer can disagree with it."</p></div>
+
+<h3><span class="time">1:45</span> Method, Phase 1: the virtual flow meter <span class="small">(75 s)</span></h3>
+<ul>
+  <li>Key observation: all wells flow at 2,300–3,700 psia, far above bubble point (1,200–1,600 psia). The oil is undersaturated, so inflow is linear in drawdown and produced gas is dissolved gas.</li>
+  <li>Model per well: liquid rate = J × (reservoir pressure − flowing pressure); reservoir pressure declines linearly in time, water cut rises linearly, GOR is near the solution GOR. Fitted to the well tests, evaluated daily from the downhole gauge and hours on stream.</li>
+  <li>Four or five parameters per well, each with a physical meaning an engineer can check. J is regularised towards a field-wide value because in some wells the test pressures barely moved (GL-10: 13 psi across seven tests), and an unconstrained fit gave physically impossible reservoir pressures.</li>
+  <li>We also built gradient-boosted trees, a per-well time trend and a choke-flow ridge regression, all scored on the same blind test. The physics model won on every phase. <span class="tag">cut</span></li>
+</ul>
+<div class="box say"><div class="t">Say</div><p>"With seven to nine tests per well there is not enough data to teach a machine the shape of inflow. So we gave it the shape and let the tests set the numbers."</p></div>
+
+<h3><span class="time">3:00</span> Evidence <span class="small">(60 s)</span></h3>
+<ul>
+  <li>Never graded on training data. Forward-chaining: every test predicted from tests completed before it, 55 blind predictions. Leave-one-test-out: all 85.</li>
+  <li>Oil error 3.5 % against 6.0 % for the baseline of carrying the last test forward. Water 4.8 % vs 5.9 %. Gas 5.9 % vs 9.2 %. Bias within ±1.2 % on every phase.</li>
+  <li>The 90 % bands on every chart are the 5th and 95th percentiles of those blind errors. Measured, not assumed.</li>
+</ul>
+<div class="box say"><div class="t">Say</div><p>"Every error we quote was measured on a test the model had not seen. The baseline is what the field does today, and we halve its oil error."</p></div>
+
+<h3><span class="time">4:00</span> Method and evidence, Phase 2: build-up analysis <span class="small">(60 s)</span></h3>
+<ul>
+  <li>For every shut-in: pressure record, Bourdet derivative, automatic radial-flow window (flattest derivative after wellbore storage, at least half a log cycle), Horner line, then k and skin from the textbook formulas with the Phase 1 oil rate, as the brief requires.</li>
+  <li>Verified three ways: synthetic build-ups with known answers (k within 2.3 %, skin within 0.15); the organisers' reference on the six real events (slope within 1.2 %, k within 3.6 %, skin within 0.09), used only to check; and a 144-case stress grid of short, storage-heavy shut-ins where the picker's mean k error fell from 19.8 % to 5.8 % with every large error flagged.</li>
+  <li>An independent analytical model match (storage + skin, full build-up) cross-checks every result and takes over, with a flag, when the shut-in is too short for radial flow.</li>
+</ul>
+<div class="box say"><div class="t">Say</div><p>"The reference answers were an exam, not a textbook. We never fitted to them. Where we differ by a few percent on k, the slope agrees and the difference is the oil rate, which is ordinary flow-meter error."</p></div>
+
+<h3><span class="time">5:00</span> Workflow and actionability, live <span class="small">(75 s, see section 3)</span></h3>
+<ul>
+  <li>Upload → Data → Daily rates → Build-up results → Export. Show the Overview's "Needs attention" list: a damaged well (GL-01, skin 6, flow efficiency 67 %), a stale test, a gauge outage, a rising water cut. Each line names the number behind it.</li>
+</ul>
+
+<h3><span class="time">6:15</span> Trust and limitations <span class="small">(45 s)</span></h3>
+<ul>
+  <li>Human in the loop: the one judgement call in PTA, the radial-flow window, has a slider; everything recalculates live and the export states the window used.</li>
+  <li>Limits stated plainly: linear trends hold for months, not years; the daily rate depends on the downhole gauge; PTA assumes single-phase, homogeneous, infinite-acting; short shut-ins give less certain numbers and are flagged.</li>
+  <li>Proof of concept, not production: production would add data feeds, recalibration governance, a surface-only fallback model, boundary models and a security review.</li>
+</ul>
+<div class="box say"><div class="t">Close</div><p>"One upload, one workflow, every number traceable, every error measured. That is what we think intelligent well performance analysis should look like."</p></div>
+
+<h2 class="pb">3. Live demo script, click by click</h2>
+<p>Target: 75–90 seconds inside the pitch, longer if the jury asks to drive. Start the app before the pitch so the model is loaded and the training view is cached. Keep the browser on the Overview.</p>
+<table>
+  <tr><th style="width:21%">Where</th><th style="width:44%">Do</th><th>Say</th></tr>
+  <tr><td>Sidebar</td><td>Point at <b>Data source</b>: Training data / Upload. If the jury has files, switch to Upload and drop them all at once (any names, CSV, Excel, Parquet or zip; no size limit).</td><td>"Files are recognised by their columns, so drop them in any order. The high-frequency table is required, the rest is optional."</td></tr>
+  <tr><td>Overview</td><td>KPIs (oil, water, gas, flow-meter error vs baseline), the 90-day field chart, latest build-up, <b>Needs attention</b>, the wells table. Click a row to open the well pop-up.</td><td>"The error KPI is the blind-test error against the baseline. Every attention line names the number behind it."</td></tr>
+  <tr><td>Data</td><td>Loaded data table, the sensor panels with grey shut-in bands, <b>What was corrected</b>, the tabs (measured well tests, cleaning per well, well-test corrections, shut-in events).</td><td>"Every correction is logged. Here is the GL-06 unit error and the sign flips, original and corrected."</td></tr>
+  <tr><td>Production · VFM › Daily rates</td><td>Three panels: step lines, grey 90 % band, test circles, shut-in shading with the drop to zero.</td><td>"Circles are the only measured points; every other day is predicted. Each circle was also predicted blind from earlier tests."</td></tr>
+  <tr><td>Rate calculator <span class="tag">if time</span></td><td>Change the pressure; the table and the inflow curve update.</td><td>"What the well should do at a given bottom-hole pressure, with its range."</td></tr>
+  <tr><td>Build-up · PTA › Results</td><td>Pick GL-01 · 15 Apr (72 h). Show m, k, skin, Δp skin, the cross-check note, the interpretation, the inputs table.</td><td>"Skin 6: the near-wellbore damage costs 119 psi; the well delivers 67 % of what it could. Candidate for stimulation."</td></tr>
+  <tr><td>Diagnostic plots</td><td>Log-log: the storage hump, the flat derivative, the shaded window. Open <b>Adjust the radial-flow window</b>, move the slider, show the manual-window note, reset.</td><td>"This is the only judgement call in the method, and the engineer owns it. Everything recalculates live, and the export says which window was used."</td></tr>
+  <tr><td>Method <span class="tag">if asked</span></td><td>Models compared table at the top, blind-test table, parity plots, synthetic check.</td><td>"Same blind test for every candidate. The trees lose because they cannot extrapolate the depletion."</td></tr>
+  <tr><td>Export</td><td>Click <b>Download zip</b>: both result files, both reports, every PTA plot, the model.</td><td>"The complete submission package, built from whatever data is loaded."</td></tr>
+</table>
+<div class="box warn"><div class="t">If the jury brings test data</div><p>Drop everything at once. If a well has no downhole gauge, the app uses the last known pressure and flags it. If tests are included, the sidebar shows the score of the unchanged model on them (out of sample) and offers recalibration; leave recalibration off unless asked, and say why: "First we score ourselves honestly, then we can learn from the new tests."</p></div>
+
+<h2>4. Highlights to land, and why they matter to this jury</h2>
+<table>
+  <tr><th style="width:30%">Highlight</th><th>Why it matters, and how to phrase it</th></tr>
+  <tr><td><b>A model chosen to avoid overfitting</b></td><td>With 7–9 tests per well, a flexible learner memorises. The physics model has 4–5 interpretable parameters per well and extrapolates depletion by construction. It beat gradient-boosted trees (6.8 % oil) and ridge regression (7.2 %) under the identical blind test. Regularising J towards the field average is the same idea at parameter level: let the data override the prior only as far as they are informative.</td></tr>
+  <tr><td><b>Never graded on training data</b></td><td>Forward-chaining is deployment-realistic: a test is predicted only from tests that ended before it started. State it once, clearly; it answers half the questions in advance.</td></tr>
+  <tr><td><b>Compared against the baseline that engineers use today</b></td><td>"Carry the last test forward" is the real competitor, and the improvement is concrete: oil error 6.0 % → 3.5 %.</td></tr>
+  <tr><td><b>Uncertainty that is measured, not assumed</b></td><td>Bands are empirical quantiles of blind errors; k's range follows from the rate's band; the model match quotes its own 80 % range. Nothing is a decorative confidence score.</td></tr>
+  <tr><td><b>Reference answers used as an exam</b></td><td>The organisers' PTA file was never used to fit. We match slope within 1.2 % and k within 3.6 %. Say explicitly that we chose not to tune the rate to close the last 3 %: "that would be fitting the answer key."</td></tr>
+  <tr><td><b>Verified on synthetic cases with known answers</b></td><td>The PTA engine recovers k within 2.3 % and skin within 0.15 on analytical build-ups; the window picker was stress-tested on 144 cases. This is an automated test in the repository, not a slide.</td></tr>
+  <tr><td><b>Data quality first, and visible</b></td><td>Seven rules, thresholds stated, raw never modified, corrections listed with original and corrected values. Mirrors the partners' own emphasis on lineage and QC.</td></tr>
+  <tr><td><b>Human in the loop</b></td><td>The window slider, the gradient override for datum conversion, flags instead of silent numbers, "model match" labelled when Horner is invalid. The app never produces a confident number from a record that cannot support one.</td></tr>
+  <tr><td><b>Runs on the jury's data unchanged</b></td><td>Upload mode with the shipped model handles new periods, missing optional files, other formats, wells without a gauge, shut-ins on the first day, and scores itself if tests are included. Thirteen automated tests cover the end-to-end path.</td></tr>
+  <tr><td><b>Complete deliverables</b></td><td>Result files (CSV and Excel), trained model, executed notebook, PTA plots folder, plus full reports. Everything the brief lists, and the app regenerates it from any upload.</td></tr>
+</table>
+
+<h2>5. Numbers to memorise</h2>
+<table>
+  <tr><th>Data</th><th class="num">Value</th></tr>
+  <tr><td>Wells / period</td><td class="num">10 · 1 Jan – 30 Sep 2025</td></tr>
+  <tr><td>Per-minute rows</td><td class="num">3.9 million</td></tr>
+  <tr><td>Well tests</td><td class="num">85 (7–9 per well)</td></tr>
+  <tr><td>Shut-ins found</td><td class="num">6 (5.7 h to 72 h)</td></tr>
+  <tr><td>Duplicates averaged</td><td class="num">2,513</td></tr>
+  <tr><td>Spikes removed per well</td><td class="num">32–59</td></tr>
+  <tr><td>Well-test repairs</td><td class="num">5 sign flips, 9 unit errors</td></tr>
+  <tr><td>Flowing pressure / bubble point</td><td class="num">2,300–3,700 / 1,200–1,600 psia</td></tr>
+</table>
+<table>
+  <tr><th>VFM, blind error (MAPE)</th><th class="num">Oil</th><th class="num">Water</th><th class="num">Gas</th></tr>
+  <tr><td>Baseline, last test forward</td><td class="num">6.0 %</td><td class="num">5.9 %</td><td class="num">9.2 %</td></tr>
+  <tr><td>VFM, forward-chaining (55)</td><td class="num"><b>3.5 %</b></td><td class="num"><b>4.8 %</b></td><td class="num"><b>5.9 %</b></td></tr>
+  <tr><td>VFM, leave-one-test-out (85)</td><td class="num">2.5 %</td><td class="num">3.6 %</td><td class="num">5.6 %</td></tr>
+  <tr><td>Per-well time trend</td><td class="num">6.0 %</td><td class="num">6.5 %</td><td class="num">7.1 %</td></tr>
+  <tr><td>Gradient-boosted trees</td><td class="num">6.8 %</td><td class="num">12.9 %</td><td class="num">13.7 %</td></tr>
+  <tr><td>Choke-flow ridge</td><td class="num">7.2 %</td><td class="num">5.8 %</td><td class="num">10.6 %</td></tr>
+  <tr><td>Bias, all phases</td><td class="num" colspan="3">within ±1.2 %</td></tr>
+  <tr><td>90 % band, oil / water / gas</td><td class="num" colspan="3">−6/+8.7 % · −8/+11.8 % · ±15 %</td></tr>
+</table>
+<table>
+  <tr><th>PTA vs reference (6 events)</th><th class="num">Ours</th><th class="num">Ref</th></tr>
+  <tr><td>GL-01, 15 Apr, 72 h: k md / skin</td><td class="num">110.9 / 5.98</td><td class="num">105.6 / 5.79</td></tr>
+  <tr><td>GL-02, 8 Mar, 5.7 h: k / skin</td><td class="num">58.6 / −0.58</td><td class="num">55.8 / −0.64</td></tr>
+  <tr><td>GL-04, 3 Jun, 48 h: k / skin</td><td class="num">53.8 / −1.28</td><td class="num">53.0 / −1.35</td></tr>
+  <tr><td>GL-06, 22 Jul, 8 h: k / skin</td><td class="num">293.9 / 1.85</td><td class="num">292.2 / 1.89</td></tr>
+  <tr><td>GL-08, 19 Aug, 72 h: k / skin</td><td class="num">42.4 / −1.64</td><td class="num">42.1 / −1.61</td></tr>
+  <tr><td>GL-10, 27 May, 9 h: k / skin</td><td class="num">193.9 / 2.28</td><td class="num">178.0 / 2.14</td></tr>
+  <tr><td><b>Mean abs. difference</b></td><td class="num" colspan="2"><b>m 1.2 % · k 3.6 % · skin 0.09</b></td></tr>
+  <tr><td>Rate difference explaining the k gap</td><td class="num" colspan="2">ours +2.7 % on average</td></tr>
+</table>
+<table>
+  <tr><th>PTA verification</th><th class="num">Result</th></tr>
+  <tr><td>Synthetic build-ups, 5 cases (k 25–290 md)</td><td class="num">k within 2.3 %, skin within 0.15</td></tr>
+  <tr><td>Stress grid, 144 short / storage-heavy cases</td><td class="num">mean k error 19.8 % → 5.8 %</td></tr>
+  <tr><td>Unflagged errors above 20 %</td><td class="num">none</td></tr>
+  <tr><td>Effect of new rules on the 6 real events</td><td class="num">none (identical)</td></tr>
+  <tr><td>Horner vs model match agreement threshold</td><td class="num">30 % on k</td></tr>
+  <tr><td>Automated tests in the repository</td><td class="num">13</td></tr>
+</table>
+<table>
+  <tr><th>Deliverables</th><th class="num">Rows / files</th></tr>
+  <tr><td>vfm_daily_predictions (csv, xlsx)</td><td class="num">2,730 rows</td></tr>
+  <tr><td>pta_results (csv, xlsx)</td><td class="num">6 rows</td></tr>
+  <tr><td>pta_plots folder</td><td class="num">30 PNG (5 per event)</td></tr>
+  <tr><td>vfm_model.pkl, executed notebook, 2 reports</td><td class="num">included</td></tr>
+</table>
+
+<h2 class="pb">6. Questions the judges may ask, with answers</h2>
+<p class="small">Grouped by theme. Keep answers to three sentences; offer the Method page or the app guide for more.</p>
+
+<h3>Modelling and overfitting</h3>
+<div class="qa"><div class="q">Why not a neural network or gradient boosting?</div><p>We tried gradient-boosted trees and a pooled ridge regression under the same blind test: 6.8 % and 7.2 % oil error against 3.5 % for the physics model. With 7–9 tests per well a flexible learner has too little to learn from and cannot extrapolate the depletion that the physics model follows by construction. Every parameter of ours means something an engineer can check.</p></div>
+<div class="qa"><div class="q">How do you know you are not overfitting?</div><p>No metric is ever computed on a test the model was fitted to: forward-chaining predicts each test from earlier tests only, leave-one-out hides the test being predicted. The PTA reference answers were used only to check, never to fit, and the PTA rules were validated on synthetic cases with known answers and shown to leave the six real events unchanged.</p></div>
+<div class="qa"><div class="q">Did you tune the trees properly? Maybe they would win with tuning.</div><p>They were given every sensor feature, well identity and time, and standard settings. The limitation is not tuning but data: 55 blind predictions from under ten examples per well, and a target that keeps drifting outside the training range as the reservoir depletes. A tree cannot output a value it has never seen; the physics model can.</p></div>
+<div class="qa"><div class="q">Is there target leakage?</div><p>The daily features are sensor medians over the day and the on-stream fraction; none of them is a measured rate. Well-test rates enter only as calibration targets, and in the backtest a test is predicted using tests that ended before it started.</p></div>
+<div class="qa"><div class="q">Why are reservoir pressure and water cut straight lines?</div><p>Over nine months, depletion and water breakthrough are close to linear and the tests confirm it; the fit is per well. It is the simplest form that follows the trend between and after tests, and the app recalibrates whenever new tests arrive. We state the limit: months, not years.</p></div>
+<div class="qa"><div class="q">Why regularise J towards a field value? Is that not cheating?</div><p>In some wells the test pressures barely moved (GL-10: 13 psi across seven tests), so the data alone cannot identify J, and a free fit gave an implied reservoir pressure of 27,000 psi. The pooled value is learned from within-well variation across the field and acts as a prior; each well's own data override it as far as they are informative. Accuracy is unchanged and every implied pressure is physical.</p></div>
+
+<h3>Validation and uncertainty</h3>
+<div class="qa"><div class="q">Where do the uncertainty numbers come from?</div><p>VFM bands are empirical 5th and 95th percentiles of the blind errors. The k range follows from the rate's band, since k is proportional to q. The model match quotes an 80 % range from the fit's Jacobian. Nothing is an assumed confidence.</p></div>
+<div class="qa"><div class="q">Your bands are calibrated on separator tests. Do they hold for daily volumes?</div><p>That is a stated limitation: daily measurements do not exist, so daily coverage cannot be verified. The tests are the only ground truth, and the bands reflect exactly the error we could measure.</p></div>
+<div class="qa"><div class="q">Why is gas the weakest phase?</div><p>Measured GOR itself scatters by about 6 % from test to test, and no sensor predicts that scatter (all correlations below 0.24). Around 5–6 % is close to the floor for gas with these data.</p></div>
+
+<h3>Build-up analysis</h3>
+<div class="qa"><div class="q">Why are your k values a few percent above the reference?</div><p>The slope agrees within 1.2 %; the difference is the oil rate, which is 2.7 % above the rate the reference implies at those dates. That is within the flow meter's validated error, and every reasonable definition of the rate before closure gives the same value. We chose not to adjust the rate to match six numbers.</p></div>
+<div class="qa"><div class="q">How is the radial-flow window chosen, and can an engineer disagree?</div><p>Automatically: the flattest derivative stretch, at least half a log cycle, after wellbore storage has come down. The engineer can move it with a slider; everything recalculates live and the export states which window was used.</p></div>
+<div class="qa"><div class="q">What if there is no radial flow in the record?</div><p>The app says so. The analytical storage-plus-skin model is matched to the whole build-up and supplies k and skin with an 80 % range and a flag. If only the storage hump is present, k and skin are not separable, and the flag asks for a longer shut-in rather than inventing a number.</p></div>
+<div class="qa"><div class="q">Why Horner and not superposition of the full rate history?</div><p>The brief specifies the VFM oil rate with a Horner analysis. We checked: in the ten days before each shut-in the rate moved by at most 2 % and no choke changed within 17 days, so full superposition would change m by far less than 1 %. The model match is the second, independent method we do run.</p></div>
+<div class="qa"><div class="q">Why tp = 24 Np/q with cumulative production since first oil?</div><p>Horner's pseudo-producing time. With tp far larger than Δt the plot is insensitive to it: m, k and skin move by at most 3 % even for a 30-day tp. Only p* shifts.</p></div>
+<div class="qa"><div class="q">Gauge or datum depth?</div><p>Both are reported for p*. m, k, skin and Δp skin use pressure differences and do not depend on depth. The gradient (0.33–0.37 psi/ft) is computed from the tests' oil and gas gravity with the PVT table and can be overridden with a survey value.</p></div>
+<div class="qa"><div class="q">What about boundaries, layering, two-phase flow?</div><p>Out of scope by the brief and by the data: the wells are undersaturated, so single-phase radial flow is the right first model. Boundaries and pressure support show up in the derivative and are flagged, not modelled. GL-01 shows late-time pressure support, and the window correctly stops before it.</p></div>
+
+<h3>Data, robustness, operations</h3>
+<div class="qa"><div class="q">How was data quality handled?</div><p>Seven explicit rules with stated thresholds, all logged and shown; well-test errors repaired from redundant columns with original and corrected values listed. On the training data: 2,513 duplicates, about 1,300 missing-value codes per column, 32–59 spikes per well, 5 sign flips and 9 unit errors.</p></div>
+<div class="qa"><div class="q">What happens if the downhole gauge fails?</div><p>Whole-day outages are bridged from neighbouring days and flagged; a well with no gauge at all uses its last known pressure and is flagged; the Overview lists the affected well-days. The gauge is the single point of dependence, and a surface-only backup model is the first item of future work.</p></div>
+<div class="qa"><div class="q">Can it run on our evaluation data without changes?</div><p>Yes: Upload mode with the shipped model. It handles new periods, missing optional files, CSV, Excel, Parquet or zip, wells without a gauge, shut-ins starting on the first day of the data, and scores itself if tests are included. There is no file-size limit.</p></div>
+<div class="qa"><div class="q">Which gas do you predict?</div><p>Formation gas only, as the test file defines gas_rate_mscfd (oil × GOR). Lift gas is excluded; total gas is a separate column in the tests.</p></div>
+<div class="qa"><div class="q">Is any of this synthetic?</div><p>Only the verification cases for the PTA engine, clearly labelled and generated from the analytical solution. All results come from the official data.</p></div>
+<div class="qa"><div class="q">Did you use any external services or LLMs?</div><p>No. Everything runs locally; the dataset never left the machine. There is no language model in the product because none of the tasks needed one.</p></div>
+<div class="qa"><div class="q">How long does an upload take?</div><p>Reading and cleaning nine months of per-minute data for ten wells and running both analyses takes well under a minute on a laptop; results are cached until the files change.</p></div>
+<div class="qa"><div class="q">What would production use require?</div><p>Integration with the historian, recalibration governance, a surface-only fallback model, boundary and multi-layer PTA models, user roles and an audit trail of overrides, and a security review. We position this as a proof of concept.</p></div>
+<div class="qa"><div class="q">What was the hardest part?</div><p>Choosing the radial-flow window on short, storage-dominated shut-ins without breaking the well-behaved ones. We solved it with two textbook rules (come down the hump first; a plateau is reached by a descent), proved on 144 synthetic cases that they help, and proved on the six real events that they change nothing.</p></div>
+
+<h2 class="pb">7. Weak points and how to handle them honestly</h2>
+<table>
+  <tr><th style="width:28%">Weak point</th><th style="width:36%">If raised</th><th>Do not</th></tr>
+  <tr><td>Daily rate depends on one sensor (downhole gauge)</td><td>Acknowledge; show the flagged outage on the Overview; name the surface-only fallback as first future step.</td><td>Claim surface pressures would work as well; the benchmark shows they do not with this data.</td></tr>
+  <tr><td>Linear trends in time</td><td>"Accurate over months, not years; built-in recalibration on every new test."</td><td>Promise it holds for the field's remaining life.</td></tr>
+  <tr><td>k is 3.6 % from the reference, up to 9 % on GL-10</td><td>Slope agrees; difference is the rate; GL-10 is a 9-hour shut-in with the fewest tests. We chose not to fit the answer key.</td><td>Apologise for it or suggest you would tune it given more time.</td></tr>
+  <tr><td>Only six shut-ins to validate PTA on real data</td><td>That is the data; hence the synthetic verification and the stress grid.</td><td>Present the synthetic results as if they were field results.</td></tr>
+  <tr><td>Gas error about 6 %</td><td>Near the floor given 6 % scatter in measured GOR.</td><td>Blame the data without the number.</td></tr>
+  <tr><td>Short shut-ins (5.7–9 h) give short windows</td><td>Flagged, with the model match as an independent check.</td><td>Hide the flags or quote those k values with the same confidence as the 72-hour ones.</td></tr>
+  <tr><td>Daily-volume coverage of the bands unverified</td><td>State it; the tests are the only ground truth.</td><td>Call the bands "confidence intervals" in the statistical sense.</td></tr>
+  <tr><td>Streamlit prototype, not an enterprise app</td><td>"Proof of concept; the processing, modelling and UI layers are separate, so the UI can be replaced."</td><td>Claim production readiness.</td></tr>
+</table>
+
+<h2 class="pb">8. Do and don't while presenting</h2>
+<div class="two">
+<div class="box good"><div class="t">Do</div>
+<ul>
+  <li>Lead with the engineering problem, not the stack.</li>
+  <li>Say "blind test" and "baseline" out loud, early.</li>
+  <li>Show one real interpretation end to end (GL-01) rather than many pages quickly.</li>
+  <li>Point at a flag and explain why it is there. Flags are a feature.</li>
+  <li>Name the limit before the jury does.</li>
+  <li>Let the person who built each part answer questions about it.</li>
+  <li>Keep answers to three sentences; offer the Method page for depth.</li>
+</ul></div>
+<div class="box warn"><div class="t">Don't</div>
+<ul>
+  <li>Don't say "AI" for a regression. Say what it is.</li>
+  <li>Don't quote a number you cannot point to in the app or the guide.</li>
+  <li>Don't claim production impact (barrels, dollars). There is no evidence for it.</li>
+  <li>Don't show or send raw dataset rows outside the room; the data are confidential.</li>
+  <li>Don't scroll the Data page's sensor panels for long; pick two signals.</li>
+  <li>Don't recalibrate on the jury's tests before scoring the unchanged model first.</li>
+  <li>Don't argue with a judge about reservoir engineering; acknowledge, state the assumption, move on.</li>
+</ul></div>
+</div>
+
+<h2 class="pb">9. Pre-pitch checklist and fallback plan</h2>
+<h3>Thirty minutes before</h3>
+<ul class="check">
+  <li>Laptop on mains power, notifications off, display scaling set so the browser shows the sidebar and KPI row without zooming (1440 px wide or more).</li>
+  <li>Start the app and wait for the training view to cache:</li>
+</ul>
+<pre>cd ~/Desktop/Socar/SOCAR_Hackathon_2026
+.venv/bin/streamlit run app/streamlit_app.py</pre>
+<ul class="check">
+  <li>Open every page once (Overview, Data, Daily rates, Rate calculator, Reservoir pressure, Results, Diagnostic plots, All build-ups, Method, Export) so nothing computes for the first time on stage.</li>
+  <li>Select GL-01 and the 15 Apr event on the Results page; return to the Overview.</li>
+  <li>Click <b>Download zip</b> once to confirm the export builds.</li>
+  <li>Have the test-data rehearsal files ready in one folder, if the organisers gave any.</li>
+  <li>Open the app guide PDF and this guide in a second window.</li>
+  <li>Timer visible to the presenter.</li>
+</ul>
+<h3>If something fails</h3>
+<ul>
+  <li><b>App will not start:</b> run the tests to see the error (<code>.venv/bin/pytest tests -q</code>); if it is the environment, reinstall with <code>pip install -r requirements.txt</code> and <code>pip install -e .</code>.</li>
+  <li><b>Page shows stale code or an error after an edit:</b> stop the server and start it again; the cached model is reloaded in seconds.</li>
+  <li><b>Upload fails on the jury's files:</b> the sidebar prints what it recognised and ignored. The high-frequency table needs the columns timestamp, well_name, dh_pressure_psia. If the names differ, say so and offer to map them; do not debug on stage for more than a minute.</li>
+  <li><b>No laptop, no projector:</b> the app guide PDF contains full-page screenshots of every page and the exported PTA summary; walk through section 6 of that document.</li>
+  <li><b>Internet down:</b> irrelevant. The app, fonts and model are local.</li>
+</ul>
+
+<h3>Roles for Q&amp;A</h3>
+<table>
+  <tr><th>Topic</th><th>Who answers</th><th>Backup material</th></tr>
+  <tr><td>Data cleaning, upload formats, app</td><td>application / data owner</td><td>Data page, app guide section 3</td></tr>
+  <tr><td>Flow-meter model, validation, benchmarks</td><td>modelling owner</td><td>Method page, app guide section 4</td></tr>
+  <tr><td>Build-up analysis, window, reference comparison</td><td>domain / PTA owner</td><td>Diagnostic plots page, app guide section 5</td></tr>
+</table>
+<p class="small">Fill in names before the event. One person keeps time and closes.</p>
+
+<h2>10. Thirty-second explanations of the hard words</h2>
+<table>
+  <tr><th style="width:24%">Term</th><th>Plain explanation to have ready</th></tr>
+  <tr><td>Virtual flow meter (VFM)</td><td>A model that estimates a well's rates from sensors it already has, instead of a physical meter.</td></tr>
+  <tr><td>Productivity index, J</td><td>How many barrels per day a well gives for each psi of drawdown. The slope of the inflow line.</td></tr>
+  <tr><td>Drawdown</td><td>Reservoir pressure minus flowing bottom-hole pressure. The push that makes the well flow.</td></tr>
+  <tr><td>Undersaturated oil</td><td>Pressure above bubble point, so no free gas in the reservoir. Flow is single-phase liquid, which makes both models simpler and valid.</td></tr>
+  <tr><td>MAPE</td><td>Mean absolute percentage error. 3.5 % means the prediction is typically 3.5 % off the measured test.</td></tr>
+  <tr><td>Forward-chaining</td><td>Predict each test using only tests that happened before it. The way the model would be used in practice.</td></tr>
+  <tr><td>Build-up test / PTA</td><td>Shut the well; watch the pressure recover; the shape of the recovery reveals the rock's permeability and the damage around the well.</td></tr>
+  <tr><td>Bourdet derivative</td><td>Slope of the pressure rise on a log time axis. Flat means radial flow in the reservoir; that is where the Horner line is valid.</td></tr>
+  <tr><td>Wellbore storage</td><td>Early after shut-in, fluid is still filling the well; the pressure says nothing about the rock yet.</td></tr>
+  <tr><td>Horner slope, m</td><td>Pressure rise per tenfold increase in shut-in time during radial flow. Permeability is inversely proportional to it.</td></tr>
+  <tr><td>Skin, s</td><td>Extra pressure loss near the wellbore. Positive is damage, negative is stimulation. Δp skin is that loss in psi; flow efficiency is the share of drawdown doing useful work.</td></tr>
+  <tr><td>p*</td><td>The Horner line extrapolated to infinite shut-in time; an estimate of reservoir pressure, reported at gauge and datum depth.</td></tr>
+  <tr><td>Radius of investigation</td><td>How far into the reservoir the pressure signal had reached by the end of the window. If it is beyond the drainage radius, boundaries may distort the result.</td></tr>
+</table>
+
+</body>
+</html>

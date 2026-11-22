@@ -5,6 +5,8 @@ oil, water and gas rates (Virtual Flow Metering) and on to automated build-up in
 
 ## Deliverables
 
+Everything to submit is collected in [`deliverables/`](deliverables/) (result files, model, executed notebook, PTA plots, app guide PDF; see its `README.txt`). The working copies the pipeline writes are:
+
 | Requested | Where |
 |---|---|
 | 1. Result files, Phase 1 (VFM) and Phase 2 (PTA), CSV or Excel | `results/vfm_daily_predictions.csv` / `.xlsx`, `results/pta_results.csv` / `.xlsx`; full reports in `results/vfm_report.xlsx` and `results/pta_report.xlsx` |
