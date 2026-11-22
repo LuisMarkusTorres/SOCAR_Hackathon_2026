@@ -1,4 +1,4 @@
-"""Method & validation: what the models are, how they were tested, and how they compare with alternatives."""
+"""Method: what the two models are and the evidence that they work. Short on purpose; the details are in the README."""
 import pandas as pd
 import streamlit as st
 
@@ -7,71 +7,54 @@ from wellperf import ui as UI
 from wellperf import vfm as V
 
 ws = UI.ws()
-UI.header("Method & validation", "How the flow meter and the build-up analysis work, and the evidence that they do")
+UI.header("Method", "How the flow meter and the build-up analysis work, and how they were checked")
+
+if ws.candidates is not None and len(ws.candidates):
+    UI.section("Models compared", "Blind test on the production well tests: each test predicted from earlier tests only. "
+                                  "Lower is better. The inflow model below is the one the app uses.")
+    cand = ws.candidates.copy()
+    UI.table(cand, key_col="model", formats={c: "{:.1f}" for c in cand.columns if "MAPE" in c},
+             labels={**{c: c.replace("MAPE", "error").capitalize() for c in cand.columns}, "model": "Model",
+                     "n_tests": "Tests"})
+    UI.howto("With under ten tests per well, the model that already knows the shape of inflow needs the least data "
+             "and follows the reservoir-pressure decline. Trees flatten outside the training range.")
 
 # ---------------------------------------------------------------- VFM
-UI.section("Virtual flow meter", "A physics-structured model, calibrated per well on the production well tests")
-left, right = st.columns([1.1, 1], gap="large")
+UI.section("Flow meter", "Inflow model per well, calibrated on its production well tests")
+left, right = st.columns([1, 1], gap="large")
 with left:
-    st.markdown(r"""
-The wells produce undersaturated oil (flowing bottom-hole pressure far above the bubble point), so only liquid flows in
-the reservoir and the inflow is linear. Per well $w$, with $t$ in days:
-
-$$q_L = J_w\,\big(\bar p_{r,w}(t) - p_{wf}\big), \qquad \bar p_{r,w}(t) = p_{0,w} + p_{1,w}\,t$$
-
-$$WC_w(t) = c_w + d_w\,t, \qquad GOR_w \approx R_s(p_b)$$
-
-$$q_o = q_L\,(1 - WC),\qquad q_w = q_L\,WC,\qquad q_g = q_o\,GOR/1000$$
-
-$$\text{daily volume} = \text{rate} \times \text{hours on stream}/24$$
-
-$J$ (productivity index) is ridge-regularised toward a pooled, field-wide value, so wells whose tests barely moved in
-pressure still get a physically sensible $J$. The only sensor the daily rate needs is the downhole gauge; shut-ins come
-from the gas-lift and choke records.
+    st.latex(r"q_L = J\,\big(p_{res}(t) - p_{wf}\big)")
+    st.markdown("""
+- $p_{res}$ and water cut are straight lines in time; GOR is the solution GOR at bubble point.
+- $J$ is pulled toward the field average when a well's tests do not pin it down.
+- Daily volume = rate × hours on stream. The only live input is the downhole gauge.
+- 90% band: 5th and 95th percentile of the blind errors below.
 """)
 with right:
-    st.markdown("**Per-well parameters**")
     par = pd.DataFrame([vars(p) for p in ws.model.params.values()])
-    par = par[["well_name", "n_tests", "J", "J_source", "wc_c", "wc_d", "gor", "rs_pb"]]
-    UI.table(par, key_col="well_name", max_height=330,
-             labels={"well_name": "Well", "n_tests": "Tests", "J": "J, STB/d/psi", "J_source": "J from",
-                     "wc_c": "WC, %", "wc_d": "WC trend, %/d", "gor": "GOR", "rs_pb": "Rs(pb)"},
-             formats={"J": "{:.2f}", "wc_c": "{:.1f}", "wc_d": "{:+.3f}", "gor": "{:,.0f}", "rs_pb": "{:,.0f}"})
+    par = par[["well_name", "n_tests", "J", "wc_c", "wc_d", "gor"]]
+    UI.table(par, key_col="well_name", max_height=260,
+             labels={"well_name": "Well", "n_tests": "Tests", "J": "J, STB/d/psi", "wc_c": "WC, %",
+                     "wc_d": "WC trend, %/d", "gor": "GOR, scf/STB"},
+             formats={"J": "{:.2f}", "wc_c": "{:.1f}", "wc_d": "{:+.3f}", "gor": "{:,.0f}"})
 
-UI.section("Validation against the well tests",
-           "Never graded on data it was trained on. Baseline: carry the last well test forward.")
+UI.section("Blind test against the well tests", "Each test predicted from earlier tests only. Baseline: last test carried forward.")
 sf, sl = V.score(ws.backtest_forward).round(2), V.score(ws.backtest_loto).round(2)
 sf.insert(1, "scheme", "forward-chaining"); sl.insert(1, "scheme", "leave-one-test-out")
 val = pd.concat([sf, sl], ignore_index=True)
 cols = ["model", "scheme", "n_tests", "oil MAPE %", "water MAPE %", "gas MAPE %", "oil bias %", "water bias %", "gas bias %"]
 UI.table(val[cols], key_col="model", formats={c: "{:.1f}" for c in cols[3:]},
-         labels={"model": "Model", "scheme": "Scheme", "n_tests": "Tests"})
-UI.howto("<b>Forward-chaining</b>: each test is predicted from tests completed before it, as in deployment. "
-         "<b>Leave-one-test-out</b>: one test is hidden and predicted from all the others, the situation of the days "
-         "between tests. MAPE = mean absolute error in %; bias = mean signed error in %. The 90% prediction bands in "
-         "the app are the 5th and 95th percentiles of the forward-chaining errors.")
+         labels={"model": "Model", "scheme": "Scheme", "n_tests": "Tests", "oil MAPE %": "Oil error %",
+                 "water MAPE %": "Water error %", "gas MAPE %": "Gas error %", "oil bias %": "Oil bias %",
+                 "water bias %": "Water bias %", "gas bias %": "Gas bias %"})
 c = st.columns(3)
 for col, ph in zip(c, V.PHASES):
     col.plotly_chart(PLT.parity_plot(ws.backtest_forward, ph), width="stretch")
-UI.howto("Measured well test against the blind, forward-chaining prediction. Points on the dotted line are perfect.")
-
-if ws.candidates is not None and len(ws.candidates):
-    UI.section("Why this model and not another",
-               "Candidates scored with the same forward-chaining backtest, on the same tests. Lower is better.")
-    cand = ws.candidates.copy()
-    UI.table(cand, key_col="model", formats={c: "{:.1f}" for c in cand.columns if "MAPE" in c},
-             labels={"model": "Model", "n_tests": "Tests"})
-    UI.howto("<b>Choke-flow ridge</b> is the Gilbert-type model (choke size, wellhead pressure, downhole minus "
-             "wellhead pressure, gas-lift rate, temperature) pooled across wells with a ridge penalty. "
-             "<b>Gradient-boosted trees</b> use every sensor feature plus the well identity and time. With under ten "
-             "tests per well, the model that already knows the shape of inflow needs the least data and extrapolates "
-             "reservoir-pressure decline instead of flattening, which trees cannot do.")
-else:
-    UI.note("The model comparison table is produced at training time (scripts/run_pipeline.py); this model file "
-            "predates it.", "info")
+UI.howto("Error = mean absolute error in %, bias = mean signed error in %. Leave-one-test-out hides one test and "
+         "predicts it from all the others.")
 
 if ws.test_eval is not None and len(ws.test_eval):
-    UI.section("Score on the uploaded well tests", "The model as trained, unchanged, against tests it had never seen")
+    UI.section("Uploaded well tests", "The model as trained, unchanged, against tests it had never seen")
     se = V.score(ws.test_eval).round(2)
     UI.table(se, key_col="model", formats={c: "{:.1f}" for c in se.columns if "%" in c or "MAE" in c})
     c = st.columns(3)
@@ -79,26 +62,23 @@ if ws.test_eval is not None and len(ws.test_eval):
         col.plotly_chart(PLT.parity_plot(ws.test_eval, ph), width="stretch")
 
 # ---------------------------------------------------------------- PTA
-UI.section("Build-up analysis", "Horner method with an automatic radial-flow window from the Bourdet derivative")
-left, right = st.columns([1.1, 1], gap="large")
+UI.section("Build-up analysis", "Horner method, radial-flow window picked from the Bourdet derivative")
+left, right = st.columns([1, 1], gap="large")
 with left:
-    st.markdown(r"""
-1. **Shut-ins** are found where gas-lift injection stops or the choke closes for at least an hour.
-2. The build-up is resampled in log time and the **Bourdet derivative** is computed on Agarwal equivalent time.
-3. The **radial-flow window** is the flattest stretch of the derivative after wellbore storage (at least half a
-   log cycle). It can be overridden by hand on the Build-up tests page.
-4. The storage + skin analytical model (Laplace space, Stehfest inversion) is fitted to the whole build-up as a
-   cross-check. It also tells when radial flow starts; when that is after the end of the shut-in, the record is
-   storage-dominated and the match replaces the Horner line, with a flag and an 80% range on k.
-5. A straight line on the **Horner plot** gives the slope $m$ and $p^*$; then, in field units,
-
-$$k = \frac{162.6\,q\,B\,\mu}{m\,h}, \qquad s = 1.151\left[\frac{p_{1hr} - p_{wf}}{m} - \log_{10}\frac{k}{\phi\,\mu\,c_t\,r_w^2} + 3.23\right], \qquad \Delta p_{skin} = 0.87\,m\,s$$
-
-$q$ is the flow meter's oil rate on the last full day before the shut-in, $t_p = 24\,N_p/q$. Every result carries
-the fit $R^2$, a derivative cross-check of $m$, the radius of investigation and plain-language flags.
+    st.markdown("""
+1. Shut-in found where gas-lift injection stops or the choke closes for 1 h or more.
+2. Pressure resampled in log time; Bourdet derivative on Agarwal equivalent time.
+3. Radial-flow window = flattest stretch of the derivative after wellbore storage, at least half a log cycle.
+4. Straight line on the Horner plot gives $m$ and $p^*$.
+5. A storage + skin analytical model is fitted to the whole build-up as a cross-check, and stands in when the shut-in is too short for radial flow.
 """)
+    st.latex(r"k = \frac{162.6\,q B \mu}{m h}")
+    st.latex(r"s = 1.151\left[\frac{p_{1hr}-p_{wf}}{m} - \log\frac{k}{\phi \mu c_t r_w^2} + 3.23\right]")
+    st.markdown("$q$ is the flow-meter oil rate on the last full day before the shut-in; $t_p = 24\\,N_p/q$. "
+                "The window can be changed by hand on the Diagnostic plots page.")
 with right:
-    st.markdown("**Verification on synthetic build-ups with known answers**")
+    st.markdown("<div class='card-title'><h4>Check on synthetic build-ups</h4><p>known k and skin, 0.3 psi gauge noise</p></div>",
+                unsafe_allow_html=True)
     try:
         import sys
         from wellperf import config as C
@@ -114,18 +94,16 @@ with right:
                              "true skin": s, "recovered skin": r.skin})
             return pd.DataFrame(rows)
         UI.table(_synthetic_table(), formats={"recovered k": "{:.1f}", "k error %": "{:+.1f}", "recovered skin": "{:.2f}",
-                                              "true k": "{:.0f}", "true skin": "{:.1f}"})
-        UI.howto("Analytical wellbore-storage + skin solution (Laplace space, Stehfest inversion) with 0.3 psi gauge "
-                 "noise, run through the same automatic pipeline. Permeability within a few percent, skin within 0.2.")
+                                              "true k": "{:.0f}", "true skin": "{:.1f}"},
+                 labels={"true k": "True k, md", "recovered k": "Recovered k", "k error %": "Error %",
+                         "true skin": "True skin", "recovered skin": "Recovered skin"})
     except Exception as e:  # the tests folder is optional in a deployment
-        st.caption(f"Synthetic verification not available here ({e}).")
+        st.caption(f"Synthetic check not available here ({e}).")
 
-UI.section("Limits", None)
+UI.section("Limits")
 st.markdown("""
-- Reservoir pressure and water cut are straight lines in time: accurate over months, not years. Each new well test can
-  recalibrate the model (sidebar, when tests are uploaded with new data).
-- The daily rate relies on the downhole gauge. Days without it use interpolated or last-known pressure and are flagged.
-- Short shut-ins give short radial-flow windows; they are flagged and less certain.
-- PTA assumes single-phase oil, constant properties and a homogeneous reservoir, as the brief specifies.
-- p\\* is reported at gauge depth and, with the live-oil gradient estimated from the tests' oil gravity, at datum depth.
+- Straight-line trends hold for months, not years. New well tests can recalibrate the model (sidebar).
+- Days without the downhole gauge use interpolated or last-known pressure and are flagged.
+- Short shut-ins give short windows and less certain k and skin; they are flagged.
+- PTA assumes single-phase oil, constant properties and a homogeneous reservoir.
 """)

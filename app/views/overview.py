@@ -34,19 +34,19 @@ sc = V.score(ws.backtest_forward).set_index("model")
 if ws.test_eval is not None and len(ws.test_eval):
     se = V.score(ws.test_eval).set_index("model")
     err = {"label": "Flow-meter oil error, uploaded tests", "value": f"{se.loc['VFM', 'oil MAPE %']:.1f}", "unit": "%",
-           "tone": "blue", "sub": f"baseline <b>{se.loc['Last test carried forward', 'oil MAPE %']:.1f}%</b> · "
+           "tone": "bad", "sub": f"baseline <b>{se.loc['Last test carried forward', 'oil MAPE %']:.1f}%</b> · "
                                   f"{int(se.loc['VFM', 'n_tests'])} tests, model unchanged"}
 else:
-    err = {"label": "Flow-meter oil error", "value": f"{sc.loc['VFM', 'oil MAPE %']:.1f}", "unit": "%", "tone": "blue",
+    err = {"label": "Flow-meter oil error", "value": f"{sc.loc['VFM', 'oil MAPE %']:.1f}", "unit": "%", "tone": "bad",
            "sub": f"baseline <b>{sc.loc['Last test carried forward', 'oil MAPE %']:.1f}%</b> · forward-chaining, "
                   f"{int(sc.loc['VFM', 'n_tests'])} tests"}
 UI.kpis([
     {"label": "Oil, field", "value": f"{field.oil_rate_stbd.iloc[-1]:,.0f}", "unit": "STB/d", "tone": "oil",
      "sub": _change("oil_rate_stbd")},
-    {"label": "Gas, field", "value": f"{field.gas_rate_mscfd.iloc[-1]:,.0f}", "unit": "Mscf/d", "tone": "gas",
-     "sub": _change("gas_rate_mscfd") or "produced gas, lift gas excluded"},
     {"label": "Water, field", "value": f"{field.water_rate_stbd.iloc[-1]:,.0f}", "unit": "STB/d", "tone": "water",
      "sub": _change("water_rate_stbd")},
+    {"label": "Gas, field", "value": f"{field.gas_rate_mscfd.iloc[-1]:,.0f}", "unit": "Mscf/d", "tone": "gas",
+     "sub": _change("gas_rate_mscfd") or "produced gas, lift gas excluded"},
     err,
 ])
 
@@ -63,10 +63,10 @@ with right:
             r = ws.pta.sort_values("t_shut").iloc[-1]
             UI.card_title("Latest build-up", f"{r.well_name} · {r.t_shut:%d %b %Y} · {r.duration_hr:.0f} h")
             fmt = lambda v, f: f"{v:{f}}" if np.isfinite(v) else "n/a"
-            UI.mini_stats([("Permeability k", fmt(r.k_md, ",.0f"), "mD", f"R² {r.r2:.3f}"),
-                           ("Skin s", fmt(r.skin, ".2f"), "", "> 0 damaged"),
-                           ("Slope m", fmt(r.m_psi_cycle, ".1f"), "psi/cycle", "Horner line"),
-                           ("Δp skin", fmt(r.dP_skin, ",.0f"), "psi", "0.87·m·s")])
+            UI.mini_stats([("Permeability k", fmt(r.k_md, ",.0f"), "mD", f"R² {r.r2:.3f}", "oil"),
+                           ("Skin s", fmt(r.skin, ".2f"), "", "> 0 damaged", "gas"),
+                           ("Slope m", fmt(r.m_psi_cycle, ".1f"), "psi/cycle", "Horner line", "blue"),
+                           ("Δp skin", fmt(r.dP_skin, ",.0f"), "psi", "0.87·m·s", "gas")])
             st.caption(f"p* {r.p_star_psia:,.0f} psia at gauge"
                        + (f" · {r.p_star_datum_psia:,.0f} at datum" if "p_star_datum_psia" in r and np.isfinite(r.p_star_datum_psia) else "")
                        + f" · rate {r.q_stbd:,.0f} STB/d")
@@ -114,26 +114,23 @@ with st.container(border=True):
     UI.attention(items[:8] if items else [("good", "Nothing needs attention", "No damaged wells, stale tests or gauge outages.")])
 
 # ---------------------------------------------------------------- pop-up for one well
-card = dict(border=True, height="stretch")
-
-
 def well_dialog_body(w: str) -> None:
     d = vd[vd.well_name == w]
     if w not in ws.model.params:
         UI.note(f"{w} has no well tests, so the flow meter is not calibrated for it.", "warn")
         return
     latest = d.iloc[-1]
-    k = st.columns(4)
-    k[0].metric("Oil, latest day", f"{latest.oil_rate_stbd:,.0f} STB/d", **card)
-    k[1].metric("Water, latest day", f"{latest.water_rate_stbd:,.0f} STB/d", **card)
-    k[2].metric("Gas, latest day", f"{latest.gas_rate_mscfd:,.0f} Mscf/d", **card)
-    k[3].metric("Oil produced in period", f"{d.oil_rate_stbd.sum():,.0f} STB", **card)
+    UI.kpis([{"label": "Oil, latest day", "value": f"{latest.oil_rate_stbd:,.0f}", "unit": "STB/d", "tone": "oil"},
+             {"label": "Water, latest day", "value": f"{latest.water_rate_stbd:,.0f}", "unit": "STB/d", "tone": "water"},
+             {"label": "Gas, latest day", "value": f"{latest.gas_rate_mscfd:,.0f}", "unit": "Mscf/d", "tone": "gas"},
+             {"label": "Oil produced, period", "value": f"{d.oil_rate_stbd.sum():,.0f}", "unit": "STB", "tone": "oil"}],
+            min_width=150)
     st.plotly_chart(PLT.vfm_rate_panels(ws.vfm_daily, ws.tests, w, ws.events, height=520), width="stretch")
     UI.howto("Lines: flow-meter daily volumes, with the 90% range shaded. Circles: measured production well tests. "
              "Shaded: the well was shut in, so nothing was produced.")
     a, b = st.columns(2)
     a.page_link("views/production.py", label="Open in Production", icon=":material/arrow_forward:")
-    b.page_link("views/buildups.py", label="Open in Build-up tests", icon=":material/arrow_forward:")
+    b.page_link("views/buildups.py", label="Open in Build-up results", icon=":material/arrow_forward:")
 
 
 # ---------------------------------------------------------------- well table

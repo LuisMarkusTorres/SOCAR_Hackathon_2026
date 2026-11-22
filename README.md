@@ -18,10 +18,10 @@ Application requirements → app pages:
 |---|---|
 | Upload raw data | Sidebar → **Upload**: drop all files at once (CSV, Excel, Parquet or a zip of them); tables are recognised by their columns |
 | Visualise field measurements | **Data**: sensor plots with shut-ins shaded, corrections applied |
-| Predict production rates with the trained VFM | **Production · VFM**: daily rates with 90% ranges, rate calculator, inflow curve; optional recalibration on uploaded tests |
-| Generate well-test plots | **Build-up · PTA**: log-log derivative, Horner, MDH, event history |
-| Estimate reservoir properties | **Build-up · PTA**: m, k, skin, Δp skin, p* at gauge and datum depth, flow efficiency |
-| Interpret reservoir behaviour | **Build-up · PTA**: written interpretation; reservoir-pressure cross-check on Production |
+| Predict production rates with the trained VFM | **Production · VFM** (Daily rates, Rate calculator, Reservoir pressure): daily rates with 90% ranges, rate calculator with inflow curve; optional recalibration on uploaded tests |
+| Generate well-test plots | **Build-up · PTA › Diagnostic plots**: log-log derivative, Horner, MDH, event history |
+| Estimate reservoir properties | **Build-up · PTA › Results**: m, k, skin, Δp skin, p* at gauge and datum depth, flow efficiency |
+| Interpret reservoir behaviour | **Build-up · PTA › Results**: written interpretation; reservoir-pressure cross-check under Production · VFM |
 | Export results and reports, VFM and PTA | **Export**: one zip with everything, or the result files (Excel/CSV), VFM report, PTA report, PTA plots (zip), model (.pkl) |
 | (method and evidence for the jury) | **Method**: equations, validation vs baseline, parity plots, model comparison, synthetic PTA check |
 
@@ -124,6 +124,7 @@ from the PVT table (about 0.34 psi/ft); m, k, skin and Δp skin are differences 
 ```
 app/streamlit_app.py     UI entry point (sidebar, upload, navigation)
 app/views/               one file per page
+app/static/fonts/        Geist and Geist Mono, served by Streamlit so the UI looks the same offline
 src/wellperf/            config · data (load+QC) · features · vfm · candidates (benchmarks) · pta · interpret
                          plots (interactive) · static_plots (PNG) · pipeline · ui (page helpers) · synthetic (fixtures)
 scripts/                 run_pipeline.py (train + export) · build_notebook.py

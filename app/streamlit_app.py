@@ -41,6 +41,39 @@ def uploaded_workspace(files: tuple, recalibrate: bool, _base: PL.Workspace) -> 
                               kinds.get("completion"), recalibrate=recalibrate)
 
 
+PAGES = {
+    "overview": st.Page("views/overview.py", title="Overview", icon=":material/dashboard:", url_path="overview", default=True),
+    "data": st.Page("views/data_quality.py", title="Data", icon=":material/database:", url_path="data"),
+    "production": st.Page("views/production.py", title="Daily rates", url_path="production"),
+    "calculator": st.Page("views/vfm_calculator.py", title="Rate calculator", url_path="calculator"),
+    "pressure": st.Page("views/vfm_pressure.py", title="Reservoir pressure", url_path="reservoir-pressure"),
+    "buildup": st.Page("views/buildups.py", title="Results", url_path="buildup"),
+    "buildup_plots": st.Page("views/pta_plots.py", title="Diagnostic plots", url_path="buildup-plots"),
+    "buildup_all": st.Page("views/pta_all.py", title="All build-ups", url_path="buildup-all"),
+    "method": st.Page("views/method.py", title="Method", icon=":material/science:", url_path="method"),
+    "export": st.Page("views/export.py", title="Export", icon=":material/download:", url_path="export"),
+}
+GROUPS = {"Production · VFM": (":material/show_chart:", ["production", "calculator", "pressure"]),
+          "Build-up · PTA": (":material/speed:", ["buildup", "buildup_plots", "buildup_all"])}
+page = st.navigation(list(PAGES.values()), position="hidden")
+current = next(k for k, pg in PAGES.items() if pg._script_hash == page._script_hash)
+
+
+def navigation() -> None:
+    """Sidebar menu: single pages as links, the VFM and PTA pages in drop-down groups."""
+    def link(k):
+        st.page_link(PAGES[k], label=PAGES[k].title, icon=PAGES[k].icon or None)
+
+    link("overview")
+    link("data")
+    for name, (icon, keys) in GROUPS.items():
+        with st.expander(name, expanded=current in keys, icon=icon):
+            for k in keys:
+                link(k)
+    link("method")
+    link("export")
+
+
 bundle = load_model()
 has_training = PL.training_data_available()
 if bundle is None and not has_training:
@@ -49,21 +82,25 @@ if bundle is None and not has_training:
     st.stop()
 base = training_workspace(bundle) if has_training else PL.workspace_from_bundle(bundle)
 ws = base if has_training else None
+st.session_state["_upload_found"] = {}
 
 with st.sidebar:
-    st.markdown("<div class='side-label'>Data</div>", unsafe_allow_html=True)
-    options = (["Training period", "Upload"] if has_training else ["Upload"])
+    nav_box = st.container()
+    st.markdown("<div class='side-label'>Data source</div>", unsafe_allow_html=True)
+    options = (["Training data", "Upload"] if has_training else ["Upload"])
     source = st.segmented_control("Data source", options, default=options[0], required=True, key="source",
                                   label_visibility="collapsed")
     if source == "Upload":
-        ups = st.file_uploader("Raw well data", type=list(PL.UPLOAD_EXTENSIONS), accept_multiple_files=True,
-                               help="Drop all files at once: CSV, Excel, Parquet, or a zip of them. Required: "
-                                    "per-minute sensor data. Optional: choke events, well tests (to score the model), "
-                                    "reservoir/PVT and completion tables. Tables are recognised by their columns.")
+        ups = st.file_uploader("Drop well data here", type=list(PL.UPLOAD_EXTENSIONS), accept_multiple_files=True,
+                               help="High-frequency data (required), choke events, well tests, reservoir/PVT and completion tables. "
+                                    "CSV, Excel, Parquet or a zip of them. Tables are recognised by their columns, "
+                                    "so the file names do not matter.")
+        st.caption("High-frequency data, choke events, well tests, PVT and completion · CSV, Excel, Parquet or zip · no size limit")
         found, notes = {}, []
         if ups:
             files = tuple((f.name, f.getvalue()) for f in ups)
             found, notes = read_uploads(files)
+            st.session_state["_upload_found"] = found
             if found:
                 st.markdown("<div class='facts'>" + "<br>".join(
                     f"<span>{PL.UPLOAD_KINDS[k]}</span> {len(found[k]):,} rows" for k in PL.UPLOAD_KINDS if k in found)
@@ -83,15 +120,16 @@ with st.sidebar:
                 st.error(f"Could not process the upload: {e}")
                 ws = None
         elif ups:
-            st.warning("The per-minute sensor table is required (columns timestamp, well_name, dh_pressure_psia, …).")
+            st.warning("The high-frequency table is required (columns timestamp, well_name, dh_pressure_psia, …).")
         if ws is None and has_training:
-            st.caption("Showing the training period until a sensor file is uploaded.")
+            st.caption("Showing the training data until a high-frequency file is uploaded.")
             ws = base
 
     if ws is not None:
         d0, d1 = pd.to_datetime(ws.vfm_daily.date).min(), pd.to_datetime(ws.vfm_daily.date).max()
-        st.caption(f"{ws.source.capitalize()}: {d0:%d %b} – {d1:%d %b %Y} · {ws.vfm_daily.well_name.nunique()} wells"
-                   + (" · flow meter recalibrated" if ws.recalibrated else ""))
+        st.markdown("<div class='facts'><span>Loaded</span> " + f"{d0:%d %b} – {d1:%d %b %Y} · "
+                    f"{ws.vfm_daily.well_name.nunique()} wells"
+                    + (" · flow meter recalibrated" if ws.recalibrated else "") + "</div>", unsafe_allow_html=True)
 
         st.markdown("<div class='side-label'>Well</div>", unsafe_allow_html=True)
         wells = sorted(ws.vfm_daily.well_name.unique())
@@ -111,19 +149,13 @@ with st.sidebar:
         st.markdown("<div class='facts'>" + "<br>".join(facts) + "</div>", unsafe_allow_html=True)
 
 if ws is None:
-    UI.header(UI.APP_NAME, "Upload raw well data in the sidebar to start")
-    UI.note("The trained flow-meter model is loaded. Drop the raw files (CSV, Excel or a zip) into the sidebar: the "
-            "per-minute sensor table is required; choke events, well tests, reservoir/PVT and completion tables are "
-            "optional.", "info")
+    UI.header(UI.APP_NAME, "Virtual flow metering and build-up analysis from raw well data")
+    UI.empty_state("Upload raw well data in the sidebar to start",
+                   "The trained flow-meter model is loaded. Drop the high-frequency table (required) and, if you "
+                   "have them, choke events, well tests, reservoir/PVT and completion tables. CSV, Excel or zip.")
     st.stop()
 
 st.session_state["_ws"] = ws
-pages = [
-    st.Page("views/overview.py", title="Overview", icon=":material/dashboard:", url_path="overview", default=True),
-    st.Page("views/data_quality.py", title="Data", icon=":material/database:", url_path="data"),
-    st.Page("views/production.py", title="Production · VFM", icon=":material/show_chart:", url_path="production"),
-    st.Page("views/buildups.py", title="Build-up · PTA", icon=":material/speed:", url_path="buildup"),
-    st.Page("views/method.py", title="Method", icon=":material/science:", url_path="method"),
-    st.Page("views/export.py", title="Export", icon=":material/download:", url_path="export"),
-]
-st.navigation(pages, position="sidebar").run()
+with nav_box:
+    navigation()
+page.run()

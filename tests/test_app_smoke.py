@@ -8,8 +8,9 @@ from wellperf import pipeline as _PL
 
 needs_data = pytest.mark.skipif(not _PL.training_data_available(), reason="needs the training data in data/raw")
 APP = Path(__file__).resolve().parents[1] / "app" / "streamlit_app.py"
-PAGES = ["views/overview.py", "views/data_quality.py", "views/production.py", "views/buildups.py",
-         "views/method.py", "views/export.py"]
+PAGES = ["views/overview.py", "views/data_quality.py", "views/production.py", "views/vfm_calculator.py",
+         "views/vfm_pressure.py", "views/buildups.py", "views/pta_plots.py", "views/pta_all.py", "views/method.py",
+         "views/export.py"]
 
 
 def _ok(at):
@@ -37,11 +38,14 @@ def test_all_pages_and_wells():
 def test_manual_window_override():
     at = AppTest.from_file(str(APP), default_timeout=300)
     at.run()
-    at.switch_page("views/buildups.py").run()
+    at.switch_page("views/pta_plots.py").run()
     _ok(at)
     s = at.slider[0]
     lo, hi = s.value
     s.set_value((lo + 0.1, hi)).run()
+    _ok(at)
+    assert any("Manual window" in m.value for m in at.markdown)
+    at.switch_page("views/buildups.py").run()          # the hand-set window carries over to the results page
     _ok(at)
     assert any("Manual window" in m.value for m in at.markdown)
 

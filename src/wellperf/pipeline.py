@@ -159,7 +159,7 @@ def train(data_dir: Path | None = None) -> Workspace:
     return build(data_dir)
 
 
-UPLOAD_KINDS = {"sensors": "Per-minute sensor data", "choke": "Choke events", "tests": "Well tests",
+UPLOAD_KINDS = {"sensors": "High-frequency data", "choke": "Choke events", "tests": "Well tests",
                 "pvt": "Reservoir / PVT properties", "completion": "Well completion"}
 
 
@@ -238,6 +238,7 @@ def read_uploads(files: list[tuple[str, bytes]]) -> tuple[dict[str, pd.DataFrame
             else:
                 for c in UPLOAD_DATES[kind]:
                     df[c] = pd.to_datetime(df[c])
+                df.attrs["source"] = tname          # file (and sheet) the table came from, for the Data page
                 found[kind] = df
     return found, notes
 

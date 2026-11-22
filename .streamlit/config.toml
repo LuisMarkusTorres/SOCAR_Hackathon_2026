@@ -1,17 +1,69 @@
+# Theme tokens follow a neutral dark design system (near-black surfaces, one accent, 10 px radius).
+# Fonts are served from app/static/fonts so the app looks the same offline.
+
+[server]
+enableStaticServing = true
+maxUploadSize = 100000     # MB; months of per-minute data for many wells are far below this
+maxMessageSize = 2000
+
 [theme]
 base = "dark"
-primaryColor = "#3b82f6"
-backgroundColor = "#0b0f1a"
-secondaryBackgroundColor = "#121a2b"
-textColor = "#e6eaf2"
-borderColor = "#1e293b"
+primaryColor = "#6095fa"
+backgroundColor = "#0b0c0e"
+secondaryBackgroundColor = "#151618"
+textColor = "#f1f2f3"
+borderColor = "#232427"
+dataframeBorderColor = "#232427"
+dataframeHeaderBackgroundColor = "#121416"
+dataframeHeaderTextColor = "#9b9fa5"
 showWidgetBorder = true
-baseRadius = "medium"
-font = "sans-serif"
+showSidebarBorder = true
+baseRadius = "0.625rem"
+buttonRadius = "0.5rem"
+font = "Geist, system-ui, sans-serif"
+codeFont = "Geist Mono, ui-monospace, monospace"
+headingFontSizes = ["1.5rem", "1.25rem", "1.0625rem", "0.9375rem", "0.875rem", "0.8125rem"]
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+metricValueFontSize = "1.5rem"
+metricValueFontWeight = 600
+linkColor = "#c9ccd1"
+linkUnderline = true
+blueColor = "#6095fa"
+orangeColor = "#f59740"
+greenColor = "#47b777"
+yellowColor = "#eba941"
+redColor = "#f14d4c"
+grayColor = "#9b9fa5"
+chartCategoricalColors = ["#6095fa", "#f59740", "#5ecad6", "#47b777", "#eba941", "#f14d4c", "#9b9fa5"]
+
+[[theme.fontFaces]]
+family = "Geist"
+url = "app/static/fonts/Geist-400.woff2"
+weight = "400"
+
+[[theme.fontFaces]]
+family = "Geist"
+url = "app/static/fonts/Geist-500.woff2"
+weight = "500"
+
+[[theme.fontFaces]]
+family = "Geist"
+url = "app/static/fonts/Geist-600.woff2"
+weight = "600"
+
+[[theme.fontFaces]]
+family = "Geist Mono"
+url = "app/static/fonts/GeistMono-400.woff2"
+weight = "400"
+
+[[theme.fontFaces]]
+family = "Geist Mono"
+url = "app/static/fonts/GeistMono-500.woff2"
+weight = "500"
 
 [theme.sidebar]
-backgroundColor = "#0d1322"
-secondaryBackgroundColor = "#141d31"
+backgroundColor = "#0e0f11"
+secondaryBackgroundColor = "#17181b"
 
 [client]
 toolbarMode = "minimal"
